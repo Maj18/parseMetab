@@ -1,6 +1,6 @@
 \name{diffEffectBoxplot_byCancer}
 \alias{diffEffectBoxplot_byCancer}
-	itle{Boxplot of limma differential effect (t statistic) by cancer}
+\title{Boxplot of limma differential effect (t statistic) by cancer}
 \description{
 Create a boxplot summarizing limma test statistics (t) for each cancer
 cohort. The function concatenates task-level limma results from
