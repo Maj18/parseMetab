@@ -33,5 +33,5 @@ ActivityBoxplot_bySystem(cf, OUT_DIR = "./plots/", w = 2, h = 3.5,
                          title = "Study Systems")
 }
 }
-/author{Yuan Li {yuan.li@nbis.se}}
+\author{Yuan Li {yuan.li@nbis.se}}
 \keyword{hplot}
