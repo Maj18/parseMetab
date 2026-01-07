@@ -37,33 +37,3 @@ Yuan Li {yuan.li@nbis.se}
 ## visualizeGSsizeClass(GSVA_limma_rslt_gsva, genes4GSVA, kegg_metab_db, kegg_metab_db_table, OUTDIR)
 }
 
-## The function is currently defined as
-function (GSVA_limma_rslt_gsva, genes4GSVA, kegg_metab_db, kegg_metab_db_table, 
-    OUTDIR) 
-{
-    pathway_class_mapping = setNames(kegg_metab_db_table$class, 
-        kegg_metab_db_table$gs_name)
-    P = lapply(GSVA_limma_rslt_gsva, function(g) {
-        pathways = rownames(g)
-        pathway_sizes = sapply(kegg_metab_db[pathways], function(d) {
-            intersect(d, genes4GSVA) \%>\% length()
-        })
-        data.frame(Pathway = names(pathway_sizes), Psize = as.numeric(pathway_sizes), 
-            Class = pathway_class_mapping[names(pathway_sizes)])
-    }) \%>\% Reduce(rbind, .) \%>\% mutate(Class = gsub("etabolism", 
-        ".", Class)) \%>\% mutate(Class = gsub("thesis", ".", Class)) \%>\% 
-        mutate(Class = gsub("biodegradation", "biodegrad.", Class)) \%>\% 
-        mutate(Class = gsub(" m.", "", Class)) \%>\% mutate(Class = gsub(" biosyn. and m.", 
-        "", Class)) \%>\% mutate(Class = gsub("M. of ", "", Class)) \%>\% 
-        mutate(Class = gsub(" and m.", "", Class)) \%>\% mutate(Class = gsub(" biosyn. and", 
-        "", Class)) \%>\% mutate(Class = gsub(" biodegrad. and", 
-        "", Class)) \%>\% mutate(Class = gsub("Biosyn. of ", "", 
-        Class)) \%>\% ggplot2::ggplot(., ggplot2::aes(x = Class, 
-        y = Psize)) + ggplot2::geom_boxplot(fill = "green4") + 
-        ggplot2::labs(x = "", y = "Pathway size") + ggplot2::theme_minimal() + 
-        ggplot2::theme(legend.position = "none", axis.text.x = ggplot2::element_text(angle = 90, 
-            hjust = 1, vjust = 0))
-    pdf(paste0(OUTDIR, "/Pathway_size_class.pdf"), w = 2.5, h = 3.5)
-    print(P)
-    dev.off()
-}    

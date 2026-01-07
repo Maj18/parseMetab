@@ -1,6 +1,6 @@
 \name{getCirPackingPlot_GSVA}
 \alias{getCirPackingPlot_GSVA}
-	itle{Circular packing plot of KEGG metabolic pathway hierarchy}
+\title{Circular packing plot of KEGG metabolic pathway hierarchy}
 \description{
 Create a circular packing plot that summarizes KEGG metabolic pathways and
 their classification. Nodes represent pathway classes and individual pathways;

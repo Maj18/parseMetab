@@ -37,8 +37,7 @@ generation for multi-cohort metabolic activity studies. Many functions
 assume tidy input (tibbles/data.frames) and integration with the
 \pkg{dplyr} / \pkg{ggplot2} ecosystem.
 }
-\author{YUAN LI}
-\maintainer{YUAN LI <yuan.li@nbis.se>}
+\author{YUAN LI <yuan.li@nbis.se>}
 \references{
 If you use this package in published work, please cite the methods and
 databases used (e.g. limma, GSVA, KEGG). Suggested citations:
