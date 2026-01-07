@@ -5,8 +5,7 @@ Version: 1.0.0
 Date: 2026-01-06
 Author: YUAN LI
 Maintainer: YUAN LI <yuan.li@nbis.se>
-Description: Provides utilities to parse proteomics/transcriptomics data, infers sample-wise metabolic activities using either CellFie or KEGG metabolic pathway-based GSVA analysis. Also runs limma (optionally paired) differential testing on
-metabolic activities and produces summary tables and visualizations.
+Description: Provides utilities to parse proteomics/transcriptomics data, infers sample-wise metabolic activities using either CellFie or KEGG metabolic pathway-based GSVA analysis. Also runs limma (optionally paired) differential testing on metabolic activities and produces summary tables and visualizations.
 License: GPL-3
 Imports:
     dplyr,
