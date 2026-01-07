@@ -26,7 +26,7 @@ remotes::install_github("https://github.com/Maj18/parseMetab", dependencies = TR
 
 ## Docker container
 
-A docker container with parseMetab and all its dependency is available at yuanli202004/cancer:v2.0.1
+A docker container with parseMetab and all its dependency installed is available at yuanli202004/cancer:v2.0.1
 
 ## Quick start (usage sketch)
 
