@@ -15,12 +15,12 @@ Imports:
     tidyr,
     ggraph,
     tibble,
-    limma
-    edgeR
-    GSVA
-    KEGGREST
-    viridis
-    matrixStats
-    ggh4x
-    pheatmap
+    limma,
+    edgeR,
+    GSVA,
+    KEGGREST,
+    viridis,
+    matrixStats,
+    ggh4x,
+    pheatmap,
     openxlsx
