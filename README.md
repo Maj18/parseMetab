@@ -19,10 +19,14 @@ for multi-cohort analyses (e.g. TCGA).
 This package is under development. To install locally from the package directory:
 
 ```r
-# from R, run in the repo root (one level above the parseMetab folder)
+# from R
 install.packages("remotes")
 remotes::install_github("https://github.com/Maj18/parseMetab", dependencies = TRUE)
 ```
+
+## Docker container
+
+A docker container with parseMetab and all its dependency is available at yuanli202004/cancer:v2.0.1
 
 ## Quick start (usage sketch)
 
