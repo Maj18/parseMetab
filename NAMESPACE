@@ -1,0 +1,12 @@
+export("ActivityBoxplot_byCancer", "ActivityBoxplot_bySystem",
+       "diffEffectBoxplot_byCancer", "diffEffectBoxplot_byCancer_GSVA",
+       "diffEffectBoxplot_bySystem", "diffEffectBoxplot_bySystem_GSVA",
+       "doVolcano_CellFie", "getCirPackingPlot_CellFie",
+       "getCirPackingPlot_GSVA", "getdb_metabolism", 
+       "GSVAlimmaTest", "limmaTest_CellFie",
+       "makeLimmaDotplot_CellFie", "makeLimmaDotplot_TCGA",
+       "makeTaskScoreHeatmap_CellFie", "plotTaskSizes",
+       "processCellFieOutput", "runLimmaCellFie",
+       "SampleSizeCircularBarplot", "SigNrBarplot", "sumUpTaskScores",
+       "visualizeGSsizeClass", "visualizeGSVSscoresClass",
+       "visualizeGSVSscoresGroup", "visualizeSigNr")
