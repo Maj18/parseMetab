@@ -1,7 +1,5 @@
 \name{getCirPackingPlot_CellFie}
 \alias{getCirPackingPlot_CellFie}
-\name{getCirPackingPlot_CellFie}
-\alias{getCirPackingPlot_CellFie}
 \title{Circular packing plot of CellFie task hierarchy}
 \description{
 Create a circular packing plot that summarizes CellFie task hierarchy and
