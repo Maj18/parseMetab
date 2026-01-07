@@ -18,34 +18,11 @@ for multi-cohort analyses (e.g. TCGA).
 
 This package is under development. To install locally from the package directory:
 
-```
-install.packages("remotes")
-remotes::install_github("Maj18/KinaseDownstream", dependencies = TRUE)
-```
-
 ```r
 # from R, run in the repo root (one level above the parseMetab folder)
-# devtools is recommended for development installs
-if (!requireNamespace("devtools", quietly = TRUE)) install.packages("devtools")
-devtools::install("./parseMetab")
+install.packages("remotes")
+remotes::install_github("https://github.com/Maj18/parseMetab", dependencies = TRUE)
 ```
-
-Dependencies
-
-The package uses the tidyverse and several Bioconductor packages. You can install common dependencies with:
-
-```r
-install.packages(c(
-  "dplyr", "ggplot2", "tibble", "stringr", "tidyr",
-  "ggh4x", "pheatmap", "openxlsx", "viridis", "ggraph", "igraph"
-))
-
-# Bioconductor packages
-if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
-BiocManager::install(c("limma", "edgeR", "GSVA", "KEGGREST", "matrixStats"))
-```
-
-Note: The exact dependency list is in `parseMetab/DESCRIPTION`. Install any additional packages reported by `R CMD check`.
 
 ## Quick start (usage sketch)
 
@@ -77,10 +54,10 @@ While developing, keep docs and NAMESPACE in sync using roxygen2:
 ```r
 # from R in the package root
 if (!requireNamespace("devtools", quietly = TRUE)) install.packages("devtools")
-devtools::document(pkg = "./parseMetab")  # generate Rd and NAMESPACE from roxygen
+devtools::document(pkg = "parseMetab")  # generate Rd and NAMESPACE from roxygen
 
 # Run package checks
-devtools::check(pkg = "./parseMetab")
+devtools::check(pkg = "parseMetab")
 # or from a shell:
 # R CMD check parseMetab
 ```
@@ -102,9 +79,5 @@ Author/Maintainer: YUAN LI <yuan.li@nbis.se>
 
 ---
 
-If you'd like, I can also:
 
-- Run `devtools::document()` for you and report any warnings/errors.
-- Run a quick `R CMD check` and summarize failures so you can prioritize fixes.
 
-Which would you like next?
