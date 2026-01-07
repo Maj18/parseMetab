@@ -1,4 +1,5 @@
 Package: parseMetab
+Version: 0.1.0
 Type: Package
 Title: Leverage proteomics/transcriptomics data, infer metabolic acitivity, perform differential analysis, and visualization.
 Version: 1.0.0
