@@ -1,7 +1,5 @@
 \name{plotTaskSizes}
 \alias{plotTaskSizes}
-\name{plotTaskSizes}
-\alias{plotTaskSizes}
 \title{Plot distribution of gene counts per task (by system)}
 \description{
 Create a boxplot summarizing the number of genes associated with each task,

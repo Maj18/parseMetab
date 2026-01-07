@@ -1,7 +1,5 @@
 \name{sumUpTaskScores}
 \alias{sumUpTaskScores}
-\name{sumUpTaskScores}
-\alias{sumUpTaskScores}
 \title{Aggregate CellFie task scores to a higher-level category}
 \description{
 Summarize CellFie task-level scores at a specified hierarchical depth (for
