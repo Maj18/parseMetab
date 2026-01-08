@@ -42,10 +42,11 @@ library(parseMetab)
 #   `cf` is a data.frame/tibble with columns Depth1, Depth2, Depth3, Sample, TaskScore
 
 # 2) Run per-cohort differential testing (limma wrappers)
-# rlst_list <- runLimmaCellFie(cf_list, meta = metadata, ...)
+
+# rlst_list <- runLimmaCellFie(cf=cf, meta = metadata, ...)
 
 # 3) Create a dotplot summarizing frequently dysregulated pathways across cohorts
-# makeLimmaDotplot_TCGA(rlst_list, adj.P.Val.cutoff = 0.05, OUTDIRV = "./plots/")
+# makeLimmaDotplot_TCGA(rlst_list$rlst_list, adj.P.Val.cutoff = 0.05, OUTDIRV = "./plots/")
 
 # 4) Other visual summaries
 # doVolcano_CellFie(...)

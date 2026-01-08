@@ -10,7 +10,7 @@ covariate alongside the primary `Condition` factor.
 limmaTest_CellFie(dat, paired = TRUE, currentCovariate = NULL, checkCovariate = FALSE, meta = meta, paired_variable = "Patient")
 }
 \arguments{
-  \item{dat}{A numeric matrix or data.frame of CellFie scores with features as rownames and samples as column names. Rows are tested features (tasks), columns are samples.}
+  \item{dat}{A numeric matrix or data.frame of CellFie scores (log2 transformed) with features as rownames and samples as column names. Rows are tested features (tasks), columns are samples.}
   \item{paired}{Logical scalar. If TRUE a paired analysis is fitted using the blocking column specified by `paired_variable`. Default: \code{TRUE}.}
   \item{currentCovariate}{Character scalar or \code{NULL}. Optional covariate name (a column in \code{meta}) to include in the model in addition to \code{Condition}. If \code{NULL} only \code{Condition} is used.}
   \item{checkCovariate}{Logical scalar. If \code{TRUE} perform basic checks on \code{currentCovariate} (existence in \code{meta} and not constant). Default: \code{FALSE}. if checkCovariate=TRUE, currentCovariate must be one a single covariate, this is for testing each covariate individually to decide whether to keep them in the model or not.}

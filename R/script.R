@@ -95,9 +95,6 @@
     
     # Calcualte GSVA per sample
     # BiocManager::install("GSVA")
-    # library(GSVA)
-    # library(tibble)
-    # library(dplyr)
     normalizedCount = as.matrix(normalizedCount)
     normalizedCount = matrix(as.numeric(normalizedCount),
         nrow = nrow(normalizedCount),
@@ -1205,7 +1202,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
 #' CellFie task scores. The function supports unpaired and paired designs and
 #' can include an optional covariate alongside the primary `Condition` factor.
 #'
-#' @param dat numeric matrix or data.frame of CellFie scores with features as
+#' @param dat numeric matrix or data.frame of CellFie scores (log2 transformed) with features as
 #'   rownames and samples as column names. Rows are tested features (e.g. tasks),
 #'   columns are samples.
 #' @param paired logical scalar. If TRUE a paired analysis is fitted using the
@@ -1309,7 +1306,7 @@ limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL,
 #'   "Depth1").
 #' @param cfs data.frame. CellFie output containing at minimum the columns
 #'   `Sample`, `TaskScore`, and the Depth columns (e.g. `Depth1`, `Depth2`,
-#'   `Depth3`) referenced by `depth`.
+#'   `Depth3`) referenced by `depth`. If depth = Depth1/2, TaskScore need to be corresponding mean score values.
 #' @param meta data.frame. Sample metadata with at least the columns
 #'   `Sample`, `Cancer_type`, `Condition`, `Batch`, `Paired` (values
 #'   'Paired'/'No'), and `Patient`. `Sample` must match column names in
@@ -1345,6 +1342,7 @@ limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL,
 runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
     dir.create(OUTDIRV, recursive = TRUE, showWarnings = FALSE)
     rownames(cfs) = NULL
+    cfs = cfs %>% mutate(TaskScore=log2(TaskScore+0.001))
     cf5_Depth = cfs[, c(depth, "Sample", "TaskScore")] %>% 
         tidyr::spread(key="Sample", value="TaskScore") %>% 
         as.data.frame() %>%
@@ -1956,9 +1954,10 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf, OUT_DIR, w=2, h=3.5, title=
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% 
     dplyr::left_join(cf %>% dplyr::select(Depth1, Depth3) %>% unique())
 
-    B_Z_N0$AveExpr_scaled = 
-        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
-    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
+    B_Z_N0$AveExpr = 2^(B_Z_N0$AveExpr)
+    # B_Z_N0$AveExpr_scaled = 
+    #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr)
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
         quantile(B_Z_N0$logFC_weighted, probs=0.95)
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
@@ -2020,9 +2019,10 @@ diffEffectBoxplot_byCancer = function(rlst_list, OUT_DIR, w=2.75, h=3.0, title="
         temp %>% tibble::rownames_to_column(var="Depth3") 
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% unique()
 
-    B_Z_N0$AveExpr_scaled = 
-        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
-    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
+    B_Z_N0$AveExpr = 2^(B_Z_N0$AveExpr)
+    # B_Z_N0$AveExpr_scaled = 
+    #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr)
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
         quantile(B_Z_N0$logFC_weighted, probs=0.95)
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 

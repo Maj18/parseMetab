@@ -11,7 +11,7 @@ runLimmaCellFie(depth, cfs, meta, OUTDIRV, w = 9.5, height = 23)
 }
 \arguments{
   \item{depth}{Character. Name of the depth column in \code{cfs} to aggregate tasks by (e.g. "Depth3").}
-  \item{cfs}{Data frame. CellFie output containing at minimum the columns \code{Sample}, \code{TaskScore}, and the hierarchical depth columns (e.g. \code{Depth1}, \code{Depth2}, \code{Depth3}).}
+  \item{cfs}{Data frame. CellFie output containing at minimum the columns \code{Sample}, \code{TaskScore}, and the hierarchical depth columns (e.g. \code{Depth1}, \code{Depth2}, \code{Depth3}). If depth = Depth1/2, TaskScore need to be corresponding mean score values.}
   \item{meta}{Data frame. Sample metadata that must include at least \code{Sample}, \code{Cancer_type}, \code{Condition}, \code{Batch}, \code{Paired} (values 'Paired'/'No') and \code{Patient}.}
   \item{OUTDIRV}{Character. Directory where output files (heatmaps and Excel summary) will be written. The directory will be created if it does not exist.}
   \item{w}{Numeric. Base width used to calculate heatmap widths (default 9.5).}
