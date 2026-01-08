@@ -682,7 +682,7 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
 
  #' Differential effect boxplot by metabolic class
  #'
- #' Generate a boxplot summarizing differential effect logFC (weighted by gene expression level) for
+ #' Generate a boxplot summarizing differential effect logFC (weighted by activity level) for
  #' KEGG metabolic pathways aggregated by metabolic class. The function
  #' collects limma test results across input groups, maps pathways to classes
  #' via the provided hierarchy table, and writes a PDF boxplot to
@@ -755,7 +755,7 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
  #' Differential effect boxplot by cancer/group
  #'
  #' Combine limma test outputs from multiple groups and plot the distribution
- #' of differential effect logFC (weighted by gene expression level) per group (for example, cancer
+ #' of differential effect logFC (weighted by activity level) per group (for example, cancer
  #' types). The function extracts the top-table results provided by
  #' \code{GSVAlimmaTest()}, computes a per-group median effect ordering and
  #' writes a boxplot PDF to the specified output directory.
@@ -1917,7 +1917,7 @@ SigNrBarplot = function(rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
 
 #' Boxplot of limma differential effect (t statistic) by system (Depth1)
 #'
-#' Build a boxplot summarizing the differential effect logFC (weighted by gene expression level) for tasks
+#' Build a boxplot summarizing the differential effect logFC (weighted by activity level) for tasks
 #' grouped at the system level (Depth1). For each cohort in
 #' \code{rlst_list} the function expects a data.frame \code{rslt_of_interest}
 #' containing at least the limma columns \code{t}, \code{logFC}, and
@@ -1985,7 +1985,7 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf, OUT_DIR, w=2, h=3.5, title=
 
 #' Boxplot of limma differential effect (t statistic) by cancer type
 #'
-#' Create a boxplot summarizing the differential effect logFC (weighted by gene expression level) for each
+#' Create a boxplot summarizing the differential effect logFC (weighted by activity level) for each
 #' cancer cohort. The function expects limma results in \code{rlst_list}
 #' (output from \code{runLimmaCellFie} or \code{limmaTest_CellFie}) where
 #' each element contains a data.frame \code{rslt_of_interest} with at

@@ -2,7 +2,7 @@
 \alias{diffEffectBoxplot_byCancer_GSVA}
 \title{Differential effect boxplot by group (e.g. cancer type)}
 \description{
-Generate a boxplot summarizing differential effect logFC (weighted by gene expression level) for
+Generate a boxplot summarizing differential effect logFC (weighted by activity level) for
 KEGG metabolic pathways across groups (for example, cancer types). The
 function collects limma test results from each supplied group, computes a
 group-level ordering by median effect, and writes a PDF boxplot to the

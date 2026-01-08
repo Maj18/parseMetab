@@ -1,8 +1,8 @@
 \name{diffEffectBoxplot_bySystem}
 \alias{diffEffectBoxplot_bySystem}
-\title{Boxplot of differential effect logFC (weighted by gene expression level) by system}
+\title{Boxplot of differential effect logFC (weighted by gene activity level) by system}
 \description{
-Create a boxplot summarizing the differential effect logFC (weighted by gene expression level) for tasks
+Create a boxplot summarizing the differential effect logFC (weighted by activity level) for tasks
 grouped at the system level (Depth1). The function maps task-level
 statistics (Depth3) to systems using the provided task hierarchy in
 \code{cf} and writes a PDF plot to the specified output directory.

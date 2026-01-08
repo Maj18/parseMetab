@@ -1,8 +1,8 @@
 \name{diffEffectBoxplot_byCancer}
 \alias{diffEffectBoxplot_byCancer}
-\title{Boxplot of differential effect logFC (weighted by gene expression level) by cancer}
+\title{Boxplot of differential effect logFC (weighted by activity level) by cancer}
 \description{
-Create a boxplot summarizing differential effect logFC (weighted by gene expression level) for each cancer
+Create a boxplot summarizing differential effect logFC (weighted by activity level) for each cancer
 cohort. The function concatenates task-level limma results from
 \code{rlst_list}, orders cancer types by median t-statistic and writes
 the resulting plot as a PDF to the specified output directory.

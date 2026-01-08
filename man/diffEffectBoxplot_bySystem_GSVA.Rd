@@ -2,7 +2,7 @@
 \alias{diffEffectBoxplot_bySystem_GSVA}
 \title{Differential effect boxplot by metabolic class}
 \description{
-Generate a boxplot summarizing differential effect logFC (weighted by gene expression level) for
+Generate a boxplot summarizing differential effect logFC (weighted by activity level) for
 KEGG metabolic pathways aggregated by metabolic class. The function collects
 limma test results across input groups, maps pathways to classes via the
 provided hierarchy table, and writes a PDF boxplot to \code{OUT_DIR}.
