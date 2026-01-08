@@ -65,7 +65,7 @@
     dge = edgeR::DGEList(counts=dat)
     # Normalize the data
     dge = edgeR::calcNormFactors(dge)
-    # Note: calcNormFactors doesn’t normalize the data, it just calculates normalization factors for use downstream.
+    # Note: calcNormFactors does not normalize the data, it just calculates normalization factors for use downstream.
     pdf(paste0(OUTDIR, "/MDS_plot.pdf"))
         print(limma::plotMDS(dge, col=as.numeric(Group)))
     dev.off()
@@ -80,8 +80,8 @@
     design = model.matrix(currentFormula, data=meta)
     colnames(design) = gsub("Group", "", colnames(design))
     dat2 = limma::voom(dge, design, plot=T)
-    # What is voom doing?
-    # Counts are transformed to log2 counts per million reads (CPM), where “per million reads” is defined based on the normalization factors we calculated earlier
+    # What is voom doing
+    # Counts are transformed to log2 counts per million reads (CPM), where per million reads is defined based on the normalization factors we calculated earlier
     # A linear model is fitted to the log2 CPM for each gene, and the residuals are calculated
     # A smoothed curve is fitted to the sqrt(residual standard deviation) by average expression (see red line in plot above)
     # The smoothed curve is used to obtain weights for each gene and sample that are passed into limma along with the log2 CPMs
@@ -682,7 +682,7 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
 
  #' Differential effect boxplot by metabolic class
  #'
- #' Generate a boxplot summarizing differential effects (t-statistics) for
+ #' Generate a boxplot summarizing differential effect logFC (weighted by gene expression level) for
  #' KEGG metabolic pathways aggregated by metabolic class. The function
  #' collects limma test results across input groups, maps pathways to classes
  #' via the provided hierarchy table, and writes a PDF boxplot to
@@ -724,16 +724,24 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
         mutate(class = gsub(" biodegrad. and", "", class)) %>%
         mutate(class = gsub("Biosyn. of ", "", class))
 
+    B_Z_N0$AveExpr_scaled = 
+        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.95)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.05)   
+
     System_orderZ = B_Z_N0 %>% unique() %>% group_by(class) %>%
-        dplyr::summarise(meanEffect = median(t, na.rm=T), .groups = "drop") %>% 
+        dplyr::summarise(meanEffect = median(logFC_weighted, na.rm=T), .groups = "drop") %>% 
         arrange(meanEffect) %>% pull(class) %>% unique()
 
     B_Z_N = B_Z_N0 %>%
         dplyr::mutate(class=factor(class, levels = System_orderZ)) %>%
-        ggplot2::ggplot(., ggplot2::aes(x=class, y=t)) +
+        ggplot2::ggplot(., ggplot2::aes(x=class, y=logFC_weighted)) +
         ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(title = title,
-            x="Class", y="Diff effect")+
+            x="Class", y="Wei. Diff. Effect")+
         ggplot2::theme_minimal() +
         ggplot2::theme(legend.position="none",
             axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
@@ -747,7 +755,7 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
  #' Differential effect boxplot by cancer/group
  #'
  #' Combine limma test outputs from multiple groups and plot the distribution
- #' of differential effects (t-statistics) per group (for example, cancer
+ #' of differential effect logFC (weighted by gene expression level) per group (for example, cancer
  #' types). The function extracts the top-table results provided by
  #' \code{GSVAlimmaTest()}, computes a per-group median effect ordering and
  #' writes a boxplot PDF to the specified output directory.
@@ -775,6 +783,14 @@ diffEffectBoxplot_byCancer_GSVA = function(
         temp %>% tibble::rownames_to_column(var="gs_name") 
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% unique()
 
+    B_Z_N0$AveExpr_scaled = 
+        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.95)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.05)   
+
     Cancer_orderZ = B_Z_N0 %>% unique() %>% group_by(Cancer_type) %>%
         dplyr::summarise(meanEffect = median(t, na.rm=T), .groups = "drop") %>% 
         arrange(meanEffect) %>% pull(Cancer_type) %>% unique()
@@ -784,7 +800,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
         ggplot2::ggplot(., ggplot2::aes(x=Cancer, y=t)) +
         ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(title = title,
-            x="Cancer", y="Diff effect")+
+            x="Cancer", y="Wei. Diff. Effect")+
         ggplot2::theme_minimal() +
         ggplot2::theme(legend.position="none",
             axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
@@ -1901,7 +1917,7 @@ SigNrBarplot = function(rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
 
 #' Boxplot of limma differential effect (t statistic) by system (Depth1)
 #'
-#' Build a boxplot summarizing the limma test statistic (t) for tasks
+#' Build a boxplot summarizing the differential effect logFC (weighted by gene expression level) for tasks
 #' grouped at the system level (Depth1). For each cohort in
 #' \code{rlst_list} the function expects a data.frame \code{rslt_of_interest}
 #' containing at least the limma columns \code{t}, \code{logFC}, and
@@ -1940,16 +1956,24 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf, OUT_DIR, w=2, h=3.5, title=
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% 
     dplyr::left_join(cf %>% dplyr::select(Depth1, Depth3) %>% unique())
 
+    B_Z_N0$AveExpr_scaled = 
+        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.95)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.05) 
+
     System_orderZ = B_Z_N0 %>% unique() %>% group_by(Depth1) %>%
-        dplyr::summarise(meanEffect = median(t, na.rm=T), .groups = "drop") %>% 
+        dplyr::summarise(meanEffect = median(logFC_weighted, na.rm=T), .groups = "drop") %>% 
         arrange(meanEffect) %>% pull(Depth1) %>% unique()
 
     B_Z_N = B_Z_N0 %>%
         dplyr::mutate(System=factor(Depth1, levels = System_orderZ)) %>%
-        ggplot2::ggplot(., ggplot2::aes(x=System, y=t)) +
+        ggplot2::ggplot(., ggplot2::aes(x=System, y=logFC_weighted)) +
         ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(title = title,
-            x="System", y="Diff effect")+
+            x="System", y="Wei. Diff. Effect")+
         ggplot2::theme_minimal() +
         ggplot2::theme(legend.position="none",
             axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
@@ -1961,7 +1985,7 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf, OUT_DIR, w=2, h=3.5, title=
 
 #' Boxplot of limma differential effect (t statistic) by cancer type
 #'
-#' Create a boxplot summarizing the limma test statistic (t) for each
+#' Create a boxplot summarizing the differential effect logFC (weighted by gene expression level) for each
 #' cancer cohort. The function expects limma results in \code{rlst_list}
 #' (output from \code{runLimmaCellFie} or \code{limmaTest_CellFie}) where
 #' each element contains a data.frame \code{rslt_of_interest} with at
@@ -1996,16 +2020,24 @@ diffEffectBoxplot_byCancer = function(rlst_list, OUT_DIR, w=2.75, h=3.0, title="
         temp %>% tibble::rownames_to_column(var="Depth3") 
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% unique()
 
+    B_Z_N0$AveExpr_scaled = 
+        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.95)
+    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
+        quantile(B_Z_N0$logFC_weighted, probs=0.05) 
+
     Cancer_orderZ = B_Z_N0 %>% unique() %>% group_by(Cancer_type) %>%
-        dplyr::summarise(meanEffect = median(t, na.rm=T), .groups = "drop") %>% 
+        dplyr::summarise(meanEffect = median(logFC_weighted, na.rm=T), .groups = "drop") %>% 
         arrange(meanEffect) %>% pull(Cancer_type) %>% unique()
 
     B_Z_N = B_Z_N0 %>%
         dplyr::mutate(Cancer=factor(Cancer_type, levels = Cancer_orderZ)) %>%
-        ggplot2::ggplot(., ggplot2::aes(x=Cancer, y=t)) +
+        ggplot2::ggplot(., ggplot2::aes(x=Cancer, y=logFC_weighted)) +
         ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(title = title,
-            x="Cancer", y="Diff effect")+
+            x="Cancer", y="Wei. Diff. effect")+
         ggplot2::theme_minimal() +
         ggplot2::theme(legend.position="none",
             axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))

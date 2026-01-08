@@ -1,8 +1,8 @@
 \name{diffEffectBoxplot_bySystem}
 \alias{diffEffectBoxplot_bySystem}
-\title{Boxplot of limma differential effect (t statistic) by system}
+\title{Boxplot of differential effect logFC (weighted by gene expression level) by system}
 \description{
-Create a boxplot summarizing the limma test statistic (t) for tasks
+Create a boxplot summarizing the differential effect logFC (weighted by gene expression level) for tasks
 grouped at the system level (Depth1). The function maps task-level
 statistics (Depth3) to systems using the provided task hierarchy in
 \code{cf} and writes a PDF plot to the specified output directory.
@@ -13,7 +13,7 @@ diffEffectBoxplot_bySystem(rlst_list, cf, OUT_DIR, w = 2, h = 3.5, title = "Pan-
 \arguments{
   \item{rlst_list}{A named list. Each element should contain a
     data.frame \code{rslt_of_interest} with at least the limma columns
-    \code{t}, \code{adj.P.Val}, and \code{logFC}. Typical input is the
+    \code{t}, \code{adj.P.Val}, \code{AveExpr} and \code{logFC}. Typical input is the
     output from \code{runLimmaCellFie} or \code{limmaTest_CellFie}.}
   \item{cf}{A data.frame. CellFie output containing at least
     \code{Depth1} and \code{Depth3} used to map tasks to systems.}

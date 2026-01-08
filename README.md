@@ -35,8 +35,11 @@ Below is a short example illustrating a typical workflow. Replace placeholder ob
 ```r
 library(parseMetab)
 
-# 1) Produce or load per-sample pathway/task scores (CellFie or GSVA)
-#    Example: `cf` is a data.frame/tibble with columns Depth1, Depth2, Depth3, Sample, TaskScore
+# 1) Process per-sample pathway/task scores (CellFie or GSVA)
+#    cf = processCellFieOutput(combined=FALSE,
+#       outdir = paste0(OUTDIR, "/CellFieOut/"), 
+#       SampleNames, meta=meta, samples2keep=meta_all$Sample)
+#   `cf` is a data.frame/tibble with columns Depth1, Depth2, Depth3, Sample, TaskScore
 
 # 2) Run per-cohort differential testing (limma wrappers)
 # rlst_list <- runLimmaCellFie(cf_list, meta = metadata, ...)

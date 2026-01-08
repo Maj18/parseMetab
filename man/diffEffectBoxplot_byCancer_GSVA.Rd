@@ -2,7 +2,7 @@
 \alias{diffEffectBoxplot_byCancer_GSVA}
 \title{Differential effect boxplot by group (e.g. cancer type)}
 \description{
-Generate a boxplot summarizing differential effects (t-statistics) for
+Generate a boxplot summarizing differential effect logFC (weighted by gene expression level) for
 KEGG metabolic pathways across groups (for example, cancer types). The
 function collects limma test results from each supplied group, computes a
 group-level ordering by median effect, and writes a PDF boxplot to the
@@ -15,7 +15,7 @@ diffEffectBoxplot_byCancer_GSVA(rlst_list, OUT_DIR, w = 2.75, h = 3, title = "Zh
   \item{rlst_list}{Named list. Results as returned by \code{GSVAlimmaTest()}
     (one element per group). Each element must contain a component
     \code{rslt_of_interest}, the data frame produced by \code{limma::topTable},
-    and that data frame must include at minimum the columns \code{t},
+    and that data frame must include at minimum the columns \code{t}, \code{AveExpr},
     \code{logFC} and \code{adj.P.Val}.}
   \item{OUT_DIR}{Character scalar. Directory where the output PDF
     (\file{diffEffectBoxplot_cancer.pdf}) will be written. The directory

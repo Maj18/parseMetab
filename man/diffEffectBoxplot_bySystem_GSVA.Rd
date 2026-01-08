@@ -2,7 +2,7 @@
 \alias{diffEffectBoxplot_bySystem_GSVA}
 \title{Differential effect boxplot by metabolic class}
 \description{
-Generate a boxplot summarizing differential effects (t-statistics) for
+Generate a boxplot summarizing differential effect logFC (weighted by gene expression level) for
 KEGG metabolic pathways aggregated by metabolic class. The function collects
 limma test results across input groups, maps pathways to classes via the
 provided hierarchy table, and writes a PDF boxplot to \code{OUT_DIR}.
@@ -14,7 +14,7 @@ diffEffectBoxplot_bySystem_GSVA(rlst_list, taskHierarchy, OUT_DIR, w = 2, h = 3.
   \item{rlst_list}{A named list of results returned by \code{GSVAlimmaTest()} (one
     element per group). Each element must contain a component \code{rslt_of_interest}
     (a data frame produced by \code{limma::topTable}) with at least the columns
-    \code{t}, \code{logFC} and \code{adj.P.Val}.}
+    \code{t}, \code{logFC}, \code{AveExpr} and \code{adj.P.Val}.}
   \item{taskHierarchy}{A data.frame or tibble with at least two columns:
     \code{gs_name} (pathway name or ID) and \code{class} (the higher-level
     metabolic class). This table maps pathways to classes for grouping and plotting.}
