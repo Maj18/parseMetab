@@ -1954,10 +1954,10 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf, OUT_DIR, w=2, h=3.5, title=
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% 
     dplyr::left_join(cf %>% dplyr::select(Depth1, Depth3) %>% unique())
 
-    B_Z_N0$AveExpr = 2^(B_Z_N0$AveExpr)
+    B_Z_N0$AveExpr = rev(rank(B_Z_N0$AveExpr, ties.method = "average")) #2^(B_Z_N0$AveExpr)
     # B_Z_N0$AveExpr_scaled = 
     #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
-    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr)
+    B_Z_N0$logFC_weighted = B_Z_N0$logFC*B_Z_N0$AveExpr
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
         quantile(B_Z_N0$logFC_weighted, probs=0.95)
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
@@ -2019,10 +2019,10 @@ diffEffectBoxplot_byCancer = function(rlst_list, OUT_DIR, w=2.75, h=3.0, title="
         temp %>% tibble::rownames_to_column(var="Depth3") 
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% unique()
 
-    B_Z_N0$AveExpr = 2^(B_Z_N0$AveExpr)
+    B_Z_N0$AveExpr = rev(rank(B_Z_N0$AveExpr, ties.method = "average")) #2^(B_Z_N0$AveExpr)
     # B_Z_N0$AveExpr_scaled = 
     #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
-    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr)
+    B_Z_N0$logFC_weighted = B_Z_N0$logFC*B_Z_N0$AveExpr
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
         quantile(B_Z_N0$logFC_weighted, probs=0.95)
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
