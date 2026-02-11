@@ -2260,3 +2260,801 @@ getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
     print(p)
     dev.off()
 }
+
+
+
+
+
+
+
+# Feature differential analysis in a CellFie framework and feature co-expression network analysis
+#' Convert gene entrez ID to gene symbol using mygene, then extract the LIPIDS METABOLISM.
+#' 
+#' @param taskInfo2 A cellfie output tabel generated with the processCellFieOutput() function. It should have a column named GeneAssociatedToEssentialRxnsTask.
+#' @examples 
+#' # getSystem(taskInfo2)
+#' 
+getSystem = function(taskInfo2, System) {
+    entrezID = unique(taskInfo2$GeneAssociatedToEssentialRxnsTask)
+    res = mygene::queryMany(
+        entrezID,
+        scopes = "entrezgene",
+        fields = "symbol",
+        species = "human"
+    )
+    mapping = setNames(res$symbol, res$query)
+    taskInfo2$GeneAssociatedToEssentialRxnsTask_symbol = 
+        mapping[as.character(taskInfo2$GeneAssociatedToEssentialRxnsTask)]
+    head(taskInfo2)
+    system = taskInfo2 %>% filter(Depth1%in%System)
+    return(system)
+}
+
+
+visualizeDiffFeatures = function(
+    limma_rslt=limma_rslt_list, 
+    outdir=outDirZhou, 
+    taskInfo=systemZhou,
+    h=NULL, w=NULL,
+    max_logFC=3,
+    depth="Depth3") {
+
+    logFCdat = lapply(names(limma_rslt), function(l) {
+        lr = limma_rslt[[l]] %>% dplyr::select(Feature, logFC) %>%
+            setNames(c("Feature", l))
+    }) %>% Reduce(dplyr::full_join, .) %>% as.data.frame() %>%
+        tibble::column_to_rownames(var="Feature")
+    logFCdat = logFCdat[rev(order(rowSums(logFCdat))), ]
+
+    padj_dat = lapply(names(limma_rslt), function(l) {
+        lr = limma_rslt[[l]] %>% dplyr::select(Feature, adj.P.Val) %>%
+            setNames(c("Feature", l))
+    }) %>% Reduce(dplyr::full_join, .) %>% as.data.frame() %>%
+        tibble::column_to_rownames(var="Feature")
+    padj_dat = padj_dat[rownames(logFCdat), ]
+
+    sig_mat = matrix("", nrow=nrow(logFCdat), ncol=ncol(logFCdat))
+    sig_mat[padj_dat<0.05] = "*"
+
+    taskInfo$Depth = taskInfo[[depth]]
+    ann_row = taskInfo %>% dplyr::select(Depth, GeneAssociatedToEssentialRxnsTask_symbol) %>%
+        na.omit() %>% unique() %>% 
+        filter(GeneAssociatedToEssentialRxnsTask_symbol %in% as.character(rownames(logFCdat))) %>%
+        mutate(value = 1) %>%  # mark presence with 1
+        tidyr::pivot_wider(names_from = Depth, 
+            values_from = value,
+            values_fill = list(value = 0)) %>%
+        tibble::column_to_rownames(var="GeneAssociatedToEssentialRxnsTask_symbol")
+    ann_row = ann_row[rownames(logFCdat), ]
+    ann_colors = 
+        replicate(ncol(ann_row), c("0" = "snow2", "1" = "#d95f02"), 
+        simplify = FALSE) %>% setNames(colnames(ann_row))
+    
+    logFCdat[abs(logFCdat)>max_logFC] = max_logFC
+    max_abs = max(abs(logFCdat), na.rm = TRUE)
+    # Define breaks centered at 0
+    breaks = seq(-max_abs, max_abs, length.out = 101)
+    p1 = pheatmap::pheatmap(logFCdat,
+            color = colorRampPalette(c("blue", "white", "red"))(100),
+            breaks = breaks,
+            # annotation_col = ann_row,   # top bar
+            display_numbers = sig_mat,
+            annotation_row = ann_row,
+            annotation_colors = ann_colors,
+            show_rownames=TRUE, 
+            show_colnames=TRUE,
+            fontsize = 10,
+            border_color = "white",
+            annotation_legend = FALSE,
+            main=paste0("logFC (*: padj<0.05)"))
+    if (is.null(w)) {
+        w = 0.165*(ncol(logFCdat)+length(ann_colors))+2
+    }
+    if (is.null(h)) {
+        h = 0.12*nrow(logFCdat)+0.05*max(nchar(colnames(ann_row))) +2.5
+    }
+    pdf(paste0(outdir, "/logFC_tumorVSnormal", depth, ".pdf"),
+        h=h, w=w)
+    print(p1)
+    dev.off()
+}
+
+systemDiffAnalysis = function(
+    System="LIPIDS METABOLISM",
+    outDirHu, outDirZhou){
+    print("Extract the specific METABOLISM genes ...")
+    # Hu2025
+    OUTDIR = "../results/CellFie_Hu2025/"
+    taskInfo2 = readRDS(paste0(OUTDIR, "/CellFieOut/taskInfo.RDS"))
+    systemHu = getSystem(taskInfo2, System=System)
+    systemHu = systemHu %>% unique()
+    saveRDS(systemHu, paste0(outDirHu, "/systemTaskInfoHu.RDS"))
+    openxlsx::write.xlsx(list(Hu2025=systemHu),
+        paste0(outDirHu, "systemTaskInfoHu.xlsx"))
+    rm(taskInfo2, OUTDIR)
+    gc()
+
+    # Zhou2020
+    OUTDIR = "../results/CellFie_Zhou2020/"
+    taskInfo2 = 
+        read.csv(paste0(OUTDIR, "/CellFieOut/all/detailScoring_new.csv"), sep="\t", header=TRUE)
+    head(taskInfo2)
+    systemZhou = getSystem(taskInfo2, System=System)
+    systemZhou = systemZhou %>% unique()
+    saveRDS(systemZhou, paste0(outDirZhou, "/systemTaskInfoZhou.RDS"))
+    openxlsx::write.xlsx(list(Zhou2020=systemZhou),
+        paste0(outDirZhou, "systemTaskInfoZhou.xlsx"))
+    rm(taskInfo2, OUTDIR)
+    gc()
+
+    print("Paired differential analysis ... ")
+    OUTDIR = "../results/CellFie_Hu2025/"
+    NdatHu = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))
+    systemHu = readRDS(paste0(outDirHu, "/systemTaskInfoHu.RDS"))
+    metaHu = readRDS(paste0(OUTDIR, "/data/Hu2025/Meta_hu2025.RDS"))
+    saveRDS(metaHu, paste0(outDirHu, "/metaHu.RDS"))
+
+    NdatHu = NdatHu[!duplicated(NdatHu$genes),]
+    rownames(NdatHu) = NULL
+    NdatHu = NdatHu %>% tibble::column_to_rownames(var="genes")
+    NdatHu[] = lapply(NdatHu, as.numeric)
+    sharedGenes = 
+        intersect(as.character(unique(systemHu$GeneAssociatedToEssentialRxnsTask)), rownames(NdatHu))
+    patientPair = which(table(metaHu$Patient)==2) %>% names()
+    limma_rslt_listHu = 
+        lapply(unique(metaHu$Cancer_type), function(c) {
+            print(c)
+            meta_sub = metaHu %>% filter(Patient%in%patientPair) %>% filter(Cancer_type==c)
+            if ((nrow(meta_sub)>4) & length(unique(meta_sub$Condition))==2) {
+                limmaTest_CellFie(
+                    dat=NdatHu[sharedGenes,], 
+                    paired=TRUE, 
+                    currentCovariate=NULL, 
+                    checkCovariate=FALSE, 
+                    meta=meta_sub, 
+                    paired_variable="Patient")  
+            } else {NA}
+        }) %>%setNames(unique(metaHu$Cancer_type))
+    limma_rslt_listHu = limma_rslt_listHu[!is.na(limma_rslt_listHu)]
+    rm(NdatHu, metaHu, sharedGenes, OUTDIR, patientPair)
+    gc()
+
+    mappingHu = setNames(systemHu$GeneAssociatedToEssentialRxnsTask_symbol,
+        systemHu$GeneAssociatedToEssentialRxnsTask)
+    limma_rslt_listHu = lapply(limma_rslt_listHu, function(x) {
+            x$rslt_of_interest %>% 
+            tibble::rownames_to_column(var="EntrezID")%>%
+            mutate(Feature=as.character(mappingHu[EntrezID])) %>%
+            dplyr::select(Feature, everything())})
+    saveRDS(limma_rslt_listHu, paste0(outDirHu, "limma_rslt_listHu.RDS"))
+    openxlsx::write.xlsx(
+        limma_rslt_listHu, 
+        file = paste0(outDirHu, "limma_reslut.xlsx"))
+
+    OUTDIR = "../results/CellFie_Zhou2020/"
+    NdatZhou = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))
+    systemZhou = readRDS(paste0(outDirZhou, "/systemTaskInfoZhou.RDS"))
+    metaZhou = readRDS(paste0(OUTDIR,"/data/Zhou2020/meta.RDS"))
+    saveRDS(metaZhou, paste0(outDirZhou, "/metaZhou.RDS"))
+
+    sum(metaZhou$Sample %in% colnames(NdatZhou))
+    sum(colnames(NdatZhou) %in% metaZhou$Sample)
+
+    NdatZhou = NdatZhou[!duplicated(NdatZhou$genes),]
+    rownames(NdatZhou) = NULL
+    NdatZhou = NdatZhou %>% tibble::column_to_rownames(var="genes")
+    NdatZhou[] = lapply(NdatZhou, as.numeric)
+    sharedGenes = 
+        intersect(as.character(unique(systemZhou$GeneAssociatedToEssentialRxnsTask)), rownames(NdatZhou))
+    patientPair = which(table(metaZhou$Patient)==2) %>% names()
+    limma_rslt_listZhou = 
+        lapply(unique(metaZhou$Cancer_type), function(c) {
+            print(c)
+            meta_sub = metaZhou %>% filter(Patient%in%patientPair) %>% filter(Cancer_type==c)
+            if ((nrow(meta_sub)>4) & length(unique(meta_sub$Condition))==2) {
+                limmaTest_CellFie(
+                    dat=NdatZhou[sharedGenes,], 
+                    paired=TRUE, 
+                    currentCovariate=NULL, 
+                    checkCovariate=FALSE, 
+                    meta=meta_sub, 
+                    paired_variable="Patient")  
+            } else {NA}
+        }) %>%setNames(unique(metaZhou$Cancer_type))
+    limma_rslt_listZhou = limma_rslt_listZhou[!is.na(limma_rslt_listZhou)]
+    rm(NdatZhou, metaZhou, sharedGenes, OUTDIR, patientPair)
+    gc()
+
+    print("Save differential analysis results ...")
+    mappingZhou = 
+        setNames(systemZhou$GeneAssociatedToEssentialRxnsTask_symbol,
+        systemZhou$GeneAssociatedToEssentialRxnsTask)
+    limma_rslt_listZhou = lapply(limma_rslt_listZhou,function(x) {
+            x$rslt_of_interest %>% 
+            tibble::rownames_to_column(var="EntrezID")%>%
+            mutate(Feature=as.character(mappingZhou[EntrezID])) %>%
+            dplyr::select(Feature, everything())})
+    saveRDS(limma_rslt_listZhou, paste0(outDirZhou, "limma_rslt_listZhou.RDS"))
+    openxlsx::write.xlsx(
+        limma_rslt_listZhou, 
+        file = paste0(outDirZhou, "limma_reslut.xlsx"))
+
+    return(list(limma_rslt_listZhou = limma_rslt_listZhou,
+            limma_rslt_listHu = limma_rslt_listHu,
+            systemHu = systemHu,
+            systemZhou = systemZhou))
+}
+
+
+
+makeEffectSizeBoxplot_system = function(
+    rslt_lists, dataset="Hu", 
+    effect.statistic="logFC",
+    winsorize.quantil=0.05) {
+    if (dataset=="Hu") {
+        limma_rslt = "limma_rslt_listHu"
+    } else if (dataset=="Zhou") {
+        limma_rslt = "limma_rslt_listZhou"
+    } else {stop("dataset must be 'Hu' or 'Zhou'")}
+
+    dat4plot = lapply(names(rslt_lists), function(sname) {
+        s = rslt_lists[[sname]]
+        lapply(s[[limma_rslt]], function(c) {
+            c$logFC = c[[effect.statistic]]
+            c %>% dplyr::select(Feature, logFC)
+        }) %>% Reduce(rbind, .) %>%
+        mutate(System = sname)
+    }) %>% Reduce(rbind, .)
+
+    dat4plot$System = gsub("METABOLISM", "M.", dat4plot$System)
+    order = dat4plot %>% group_by(System) %>% 
+        summarize(median=median(logFC)) %>% 
+        arrange(median) %>% pull(System) %>% unique()
+    dat4plot$System = factor(dat4plot$System, levels=order)
+    quantileLower = quantile(dat4plot$logFC, probs=winsorize.quantil)
+    quantileUpper = quantile(dat4plot$logFC, probs=1-winsorize.quantil)
+    dat4plot$logFC[dat4plot$logFC < quantileLower] = quantileLower
+    dat4plot$logFC[dat4plot$logFC > quantileUpper] = quantileUpper
+
+    pdf(paste0(outDirSummary, "/effectSize_",effect.statistic,"_system_", dataset, ".pdf"), h=4, w= 3)
+    print(dat4plot %>% ggplot2::ggplot(., ggplot2::aes(x=System, y=logFC)) +
+        ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color="#E69F00")+
+        ggplot2::geom_boxplot(width=0.4, fill="grey", alpha = 0.4, color="black", linewidth = 0.1, outlier.size = 0.5) + 
+        ggplot2::labs(title = "",
+            x="System", y=effect.statistic)+
+        ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 0.5) +
+        ggplot2::theme_minimal() +
+        ggplot2::theme(legend.position="none",
+            axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0)))
+    dev.off()
+}
+
+
+
+makeEffectSizeBoxplot_cancer = function(
+    rslt_lists, dataset="Hu", 
+    effect.statistic="logFC",
+    winsorize.quantil=0.05) {
+    if (dataset=="Hu") {
+        limma_rslt = "limma_rslt_listHu"
+    } else if (dataset=="Zhou") {
+        limma_rslt = "limma_rslt_listZhou"
+    } else {stop("dataset must be 'Hu' or 'Zhou'")}
+
+    cancers = names(rslt_lists[[1]][[limma_rslt]])
+    dat4plot = lapply(cancers, function(c) {
+        lapply(names(rslt_lists), function(sname) {
+            cdat = rslt_lists[[sname]][[limma_rslt]][[c]]
+            cdat$logFC = cdat[[effect.statistic]]
+            cdat %>% dplyr::select(Feature, logFC)
+        }) %>% Reduce(rbind, .) %>%
+        mutate(Cancer = c)
+    }) %>% Reduce(rbind, .)
+
+    order = dat4plot %>% group_by(Cancer) %>% 
+        summarize(median=median(logFC)) %>% 
+        arrange(median) %>% pull(Cancer) %>% unique()
+    dat4plot$Cancer = factor(dat4plot$Cancer, levels=order)
+    quantileLower = quantile(dat4plot$logFC, probs=winsorize.quantil)
+    quantileUpper = quantile(dat4plot$logFC, probs=1-winsorize.quantil)
+    dat4plot$logFC[dat4plot$logFC < quantileLower] = quantileLower
+    dat4plot$logFC[dat4plot$logFC > quantileUpper] = quantileUpper
+
+    w = length(order)*0.15 + 1
+    pdf(paste0(outDirSummary, "/effectSize_",effect.statistic,"_Cancer_", dataset, ".pdf"), h=4, w= w)
+    print(dat4plot %>% ggplot2::ggplot(., ggplot2::aes(x=Cancer, y=logFC)) +
+        # ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color="white")+
+        ggplot2::geom_boxplot(width=0.75, fill="#E69F00", outlier.size = 0.5, line.width=0.3) + 
+        ggplot2::labs(title = "",
+            x="Cancer", y=effect.statistic)+
+        ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+        ggplot2::theme_minimal() +
+        ggplot2::theme(legend.position="none",
+            axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0)))
+    dev.off()
+}
+
+
+makeExprBoxplot_system = function(
+    NormExpr=NdatHu, 
+    rslt_lists,
+    dataset="Hu", 
+    winsorize.quantil=0.05,
+    outDirSummary) {
+
+    if (dataset=="Hu") {
+        limma_rslt = "limma_rslt_listHu"
+    } else if (dataset=="Zhou") {
+        limma_rslt = "limma_rslt_listZhou"
+    } else {stop("dataset must be 'Hu' or 'Zhou'")}
+    NormExpr = NormExpr[!duplicated(NormExpr$genes), ] 
+    rownames(NormExpr) = NULL
+    NormExpr = NormExpr %>% 
+        tibble::column_to_rownames(var="genes")
+    dat4plot = lapply(names(rslt_lists), function(sname) {
+        cancers = names(rslt_lists[[sname]][[limma_rslt]])
+        lapply(cancers, function(c) {
+            features = rslt_lists[[sname]][[limma_rslt]][[c]][["EntrezID"]]
+            dat = NormExpr[features, ]
+            rownames(dat) = NULL
+            rownames(dat) = rslt_lists[[sname]][[limma_rslt]][[c]][["Feature"]]
+            data.frame(Feature=rownames(dat), meanExpr = rowMeans(dat), System=sname)
+        }) %>% Reduce(rbind, .)
+    }) %>% Reduce(rbind, .)
+    dat4plot$System = gsub("METABOLISM", "M.", dat4plot$System)
+    order = dat4plot %>% group_by(System) %>% 
+        summarize(median=median(meanExpr)) %>% 
+        arrange(median) %>% pull(System) %>% unique()
+    dat4plot$System = factor(dat4plot$System, levels=order)
+    quantileLower = quantile(dat4plot$meanExpr, probs=winsorize.quantil)
+    quantileUpper = quantile(dat4plot$meanExpr, probs=1-winsorize.quantil)
+    dat4plot$meanExpr[dat4plot$meanExpr < quantileLower] = quantileLower
+    dat4plot$meanExpr[dat4plot$meanExpr > quantileUpper] = quantileUpper
+
+    pdf(paste0(outDirSummary, "/FeatureAbundance_system_", dataset, ".pdf"), h=4, w= 2)
+    print(dat4plot %>% ggplot2::ggplot(., ggplot2::aes(x=System, y=meanExpr)) +
+        ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color="white", width=1)+
+        ggplot2::geom_boxplot(width=0.1, line.width=0.1) + 
+        ggplot2::labs(title = "",
+            x="System", y="meanExpr")+
+        # ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+        ggplot2::theme_minimal() +
+        ggplot2::theme(legend.position="none",
+            axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0)))
+    dev.off()
+}
+
+#' @param framework this can be either "CellFie" or "GSVA"
+#' 
+getSystemNetwork = function(
+    dat=NdatHu, taskInfo=taskInfo2, System, outdir, suffix="",
+    framework="CellFie", keggTable=NULL, size.index=1,
+    vertex.size.index=10) {
+    if (framework == "CellFie") {
+        systemHu = getSystem(taskInfo, System=System)
+        sub = dat[rownames(dat) %in% systemHu$GeneAssociatedToEssentialRxnsTask,]
+        mapping = setNames(
+            systemHu$GeneAssociatedToEssentialRxnsTask_symbol, 
+            as.character(systemHu$GeneAssociatedToEssentialRxnsTask))
+        sub$symbol = as.character(mapping[rownames(sub)])
+        sub = sub[!duplicated(sub$symbol), ]
+        rownames(sub) = NULL
+        sub = sub %>% tibble::column_to_rownames(var="symbol")
+    } else if (!is.null(keggTable)){
+            keggTable_sub = filter(keggTable, class==System)
+            sub = dat[dat$symbol %in% keggTable_sub$gene_symbol,]
+            sub = sub[!duplicated(sub$symbol), ]
+            rownames(sub) = NULL
+            sub = sub %>% tibble::column_to_rownames(var="symbol")
+    } else {
+            kegg_metab_dbs = 
+                getdb_metabolism(databaseDIR=paste0(outdir, "/KEGG_metabolism/"))
+            keggTable_sub = filter(kegg_metab_dbs$kegg_metab_db, class==System)
+            sub = dat[dat$symbol %in% keggTable_sub$gene_symbol,]
+            sub = sub[!duplicated(sub$symbol), ]
+            rownames(sub) = NULL
+            sub = sub %>% tibble::column_to_rownames(var="symbol")
+    }
+
+    # Calcaulte co-expression matrix: genes x samples and find hub features
+    cor_mat = cor(t(sub), method = "spearman")
+    kWithin = rowSums(abs(cor_mat)) - 1 # hubness
+    hub.nr = max(3, 0.03*length(kWithin))
+    hubs = names(sort(kWithin, decreasing = TRUE))[1:hub.nr]
+
+    library(igraph)
+    # Filter the cor matrix to only keep those cor >0.6
+    # correlation threshold
+    thr = 0.6
+    cor_mat[is.na(cor_mat)] = 0
+    edges = which(
+        abs(cor_mat) > thr & lower.tri(cor_mat),
+        arr.ind = TRUE
+    )
+    # You’re extracting the pairs of genes whose absolute correlation is above your threshold, 
+    # but only from the lower triangle to avoid duplicates, and returning their positions as row/column indices. 
+    # These pairs represent the edges in your co-expression network.
+    edge_df = data.frame(
+    from   = rownames(cor_mat)[edges[,1]],
+    to     = colnames(cor_mat)[edges[,2]],
+    weight = cor_mat[edges]
+    )
+    # Build a filtered graph
+    g = graph_from_data_frame(edge_df, directed = FALSE)
+
+    # add node attributes
+    V(g)$kWithin = kWithin[V(g)$name] #hubness
+    V(g)$isHub   = V(g)$name %in% hubs
+    # # You’re making a smaller graph containing only your hub genes plus their direct neighbors
+    # g_viz = induced_subgraph(
+    #   g,
+    #   vids = unique(unlist(ego(g, nodes = hubs, order = 1)))
+    # )
+
+    set.seed(42)
+    paste0(outdir, "/Network/") %>% dir.create(recursive=T, showWarnings=F)
+    h = w = size.index*length(V(g))/10 + 5
+    pdf(paste0(outdir, "/Network/Network_hub_", gsub(" ", "", System),suffix,".pdf"), h=h,w=w)
+    library(scales)
+    edge.color = ifelse(E(g)$weight > 0, "snow2", "skyblue")
+    E(g)$weight = abs(E(g)$weight)
+    plot(
+        g,
+        layout = layout_with_fr,
+        
+        vertex.size = vertex.size.index * (V(g)$kWithin - min(V(g)$kWithin)) / (max(V(g)$kWithin) - min(V(g)$kWithin)),  
+        # normalize size nicely
+        vertex.color = ifelse(V(g)$isHub, alpha("#D73027",0.6), alpha("orange", 0.6)),  # nicer red and blue shades
+        vertex.frame.color = "gold",   # subtle border around nodes
+        
+        vertex.label = V(g)$name,
+        vertex.label.cex = 1,
+        vertex.label.color = "black",
+        vertex.label.family = "Helvetica",
+        
+        edge.width = 1 + 4 * abs(E(g)$weight),  # base width plus scaled by weight
+        edge.color = edge.color,  # clean blue/red colors
+        edge.curved = 0.1,  # slight curve to edges for better visibility
+        
+        margin = c(0, 0, 0, 0),  # reduce plot margin
+        main = "Co-expression Network: Hubs and Neighbors"
+    )
+    dev.off()
+
+    # # Only keep postively correlated edges
+    # edge_df <- subset(edge_df, weight > thr)
+    # V(g)$betweenness <- betweenness(g)
+    # V(g)$eigen <- eigen_centrality(g)$vector
+    # library(ggraph)
+    # set.seed(1)
+    # ggraph(g_viz, layout = "fr") +
+    #   geom_edge_link(aes(width = abs(weight), color = weight > 0), alpha = 0.7) +
+    #   geom_node_point(aes(size = kWithin, color = isHub)) +
+    #   geom_node_text(aes(label = name), repel = TRUE) +
+    #   theme_void()
+    return(kWithin)
+}
+
+
+
+
+
+
+
+
+# Survival analysis
+metabolicSurvival_coxreg = function(meta, GSVAscores) {
+    meta = meta[!(is.na(meta$days_to_death)&is.na(meta$days_to_last_follow_up)),]
+    meta = meta[!is.na(meta$sample.submitter_id), ]
+    shared = intersect(meta$sample.submitter_id, colnames(GSVAscores))
+    meta = meta[meta$sample.submitter_id %in% shared, ]
+    Gscores = GSVAscores[, c("Features",  gsub("-", ".", meta$sample.submitter_id))]
+    # Create survival time: death time if dead, otherwise last follow up time
+    survival_time = 
+        ifelse(!is.na(meta$days_to_death), meta$days_to_death, meta$days_to_last_follow_up)
+    # Event: 1 if dead, 0 if alive
+    status = ifelse(meta$vital_status == "Dead", 1, 0)
+    # Assuming:
+    # - surv_time: numeric vector of survival times (time to event or censor)
+    # - status: event indicator (1=event, 0=censored)
+    # - score: continuous predictor vector
+    surv_obj = survival::Surv(time = survival_time, event = status)
+    return(lapply(1:nrow(Gscores), function(i) {
+        # print(i)
+        feature = Gscores$Features[i]
+        # Function to safely try fitting a Cox model
+        try_cox = function(formula) {
+            tryCatch({
+                cox_model = survival::coxph(formula)
+                ph_test = survival::cox.zph(cox_model) # assumption test
+                list(cox_model = cox_model, ph_test=ph_test)
+            },
+                error = function(e) NULL
+            )
+        }
+
+        # Try full model first
+        fit = try_cox(surv_obj ~ 
+            as.numeric(Gscores[i,2:ncol(Gscores)])+ meta$age_at_diagnosis+meta$gender+meta$ajcc_pathologic_stage)
+
+        # If error (fit is NULL), try simpler model
+        if (is.null(fit)) {
+        fit = try_cox(surv_obj ~ 
+            as.numeric(Gscores[i,2:ncol(Gscores)])+ meta$age_at_diagnosis+meta$gender)
+        }
+
+        if (is.null(fit)) {
+        fit = try_cox(surv_obj ~ 
+            as.numeric(Gscores[i,2:ncol(Gscores)])+ meta$age_at_diagnosis)
+        }
+
+        if (is.null(fit)) {
+        fit = try_cox(surv_obj ~ 
+            as.numeric(Gscores[i,2:ncol(Gscores)]))
+        }
+
+        # Check result
+        if (is.null(fit)) {
+            # stop("All models failed to fit.")
+            summary_table = as.data.frame(list(
+                Feature = NULL,
+                survival_table = NULL,
+                test_statistic = NULL,
+                degrees_freedom = NULL,
+                p_value = NULL
+            ))
+        } else {
+            sum_model = summary(fit$cox_model)
+            # ph_test = survival::cox.zph(cox_model), # assumption test
+            # sum_model = summary(cox_model)
+            data.frame(
+                Feature = feature,
+                HR = exp(sum_model$coefficients[1]),
+                CI_lower = sum_model$conf.int[,"lower .95"][1],
+                CI_upper = sum_model$conf.int[,"upper .95"][1],
+                p_value = sum_model$coefficients[,"Pr(>|z|)"][1],
+                SchoenfeldResidualTest_pvalue = fit$ph_test$table[1, "p"]
+            )
+        }
+    }) %>% Reduce(rbind, .) %>% as.data.frame() %>%
+    mutate(padj = p.adjust(p_value, method="fdr")))
+}
+
+
+
+
+
+metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
+    meta = meta[!(is.na(meta$days_to_death)&is.na(meta$days_to_last_follow_up)),]
+    meta = meta[!is.na(meta$sample.submitter_id), ]
+    shared = intersect(meta$sample.submitter_id, colnames(GSVAscores))
+    meta = meta[meta$sample.submitter_id %in% shared, ]
+    Gscores = GSVAscores[, c("Features",  gsub("-", ".", meta$sample.submitter_id))]
+    # Create survival time: death time if dead, otherwise last follow up time
+    survival_time = 
+        ifelse(!is.na(meta$days_to_death), meta$days_to_death, meta$days_to_last_follow_up)
+    # Event: 1 if dead, 0 if alive
+    status = ifelse(meta$vital_status == "Dead", 1, 0)
+    # Assuming:
+    # - surv_time: numeric vector of survival times (time to event or censor)
+    # - status: event indicator (1=event, 0=censored)
+    # - score: continuous predictor vector
+    surv_obj = survival::Surv(time = survival_time, event = status)
+    lapply(1:nrow(Gscores), function(i) {
+            # print(i)
+            feature = Gscores$Features[i]
+            # Function to safely try fitting a Cox model
+            try_cox = function(formula) {
+                tryCatch({
+                    fitted = survival::survfit(formula)
+                    diff_res = survival::survdiff(formula)
+                    list(fitted=fitted, diff_res=diff_res)
+                },
+                    error = function(e) NULL
+                )
+            }
+            quantiles = 
+                quantile(Gscores[i,2:ncol(Gscores)], probs = c(0.25, 0.75), na.rm = TRUE)
+            group0 = 
+                ifelse(Gscores[i,2:ncol(Gscores)] >= quantiles[2], "High",
+                ifelse(Gscores[i,2:ncol(Gscores)] <= quantiles[1], "Low", NA))
+            group = group0[!is.na(group0)]
+            surv_obj_sub = surv_obj[!is.na(group0)]
+            meta_sub = meta[!is.na(group0),]
+            meta_sub$group=group
+            # Try full model first
+            # fit = try_cox(formula = surv_obj_sub ~ 
+            #     gorup+ meta_sub$age_at_diagnosis+meta_sub$gender+meta_sub$ajcc_pathologic_stage)
+
+            # # If error (fit is NULL), try simpler model
+            # if (is.null(fit)) {
+            # fit = try_cox(formula = surv_obj_sub ~ 
+            #     group+ meta_sub$age_at_diagnosis+meta_sub$gender)
+            # }
+
+            # if (is.null(fit)) {
+            # fit = try_cox(formula = surv_obj_sub ~ 
+            #     group+ meta_sub$age_at_diagnosis)
+            # }
+
+            # if (is.null(fit)) {
+            fit = try_cox(formula = surv_obj_sub ~ group)
+            # }
+
+            # Check result
+            if (is.null(fit)) {
+                # stop("All models failed to fit.")
+                print(paste0("All models failed to fit for ", feature))
+            } else {
+                fitted = fit$fitted
+                diff_res = fit$diff_res
+                pdf(paste0(outdir, "/KaplanMeierCurves_",gsub(" |/","",feature),".pdf"))
+                print(plot(fitted, col = c("red", "blue"), xlab = "Time", ylab = "Survival Probability"))
+                print(legend("topright", legend = levels(factor(meta_sub$group)), col = c("red", "blue"), lty = 1))
+                dev.off()
+            }
+        })
+
+    rslt = lapply(1:nrow(Gscores), function(i) {
+        # print(i)
+        feature = Gscores$Features[i]
+        # Function to safely try fitting a Cox model
+        try_cox = function(formula) {
+            tryCatch({
+                fitted = survival::survfit(formula)
+                diff_res = survival::survdiff(formula)
+                list(fitted=fitted, diff_res=diff_res)
+            },
+                error = function(e) NULL
+            )
+        }
+        quantiles = 
+            quantile(Gscores[i,2:ncol(Gscores)], probs = c(0.35, 0.65), na.rm = TRUE)
+        group0 = 
+            ifelse(Gscores[i,2:ncol(Gscores)] >= quantiles[2], "High",
+            ifelse(Gscores[i,2:ncol(Gscores)] <= quantiles[1], "Low", NA))
+        group = group0[!is.na(group0)]
+        surv_obj_sub = surv_obj[!is.na(group0)]
+        meta_sub = meta[!is.na(group0),]
+        meta_sub$group=group
+        # Try full model first
+        # fit = try_cox(formula = surv_obj_sub ~ 
+        #     gorup+ meta_sub$age_at_diagnosis+meta_sub$gender+meta_sub$ajcc_pathologic_stage)
+
+        # # If error (fit is NULL), try simpler model
+        # if (is.null(fit)) {
+        # fit = try_cox(formula = surv_obj_sub ~ 
+        #     group+ meta_sub$age_at_diagnosis+meta_sub$gender)
+        # }
+
+        # if (is.null(fit)) {
+        # fit = try_cox(formula = surv_obj_sub ~ 
+        #     group+ meta_sub$age_at_diagnosis)
+        # }
+
+        # if (is.null(fit)) {
+        fit = try_cox(formula = surv_obj_sub ~ group)
+        # }
+
+        # Check result
+        if (is.null(fit)) {
+            # stop("All models failed to fit.")
+            summary_table = as.data.frame(list(
+                Feature = NULL,
+                survival_table = NULL,
+                test_statistic = NULL,
+                degrees_freedom = NULL,
+                p_value = NULL
+            ))
+        } else {
+            fitted = fit$fitted
+            diff_res = fit$diff_res
+            # Extract table of groups
+            surv_table = data.frame(
+                group = names(diff_res$n),
+                N = diff_res$n,
+                Observed = diff_res$obs,
+                Expected = diff_res$exp
+            )
+            # Extract test statistics
+            chisq = diff_res$chisq
+            df = length(diff_res$n) - 1
+            p_value = 1 - pchisq(chisq, df)
+
+            # Combine everything for reporting
+            summary_table = as.data.frame(list(
+                Feature = feature,
+                survival_table = surv_table,
+                test_statistic = chisq,
+                degrees_freedom = df,
+                p_value = p_value
+            ))
+        }
+        
+        # print(plot(fitted, col = c("red", "blue"), xlab = "Time", ylab = "Survival Probability"))
+        # print(legend("topright", legend = levels(factor(meta_sub$group)), col = c("red", "blue"), lty = 1))
+
+        summary_table
+    }) %>% Reduce(rbind, .) %>% as.data.frame() %>%
+        mutate(padj = p.adjust(p_value, method="fdr"))
+    
+    return(rslt)
+}
+
+
+visualizeDiffFeatures = function(
+    metabolicSur_rslts=metabolicSur_rslts, 
+    kegg_metab_db_table = kegg_metab_dbs$kegg_metab_db_table,
+    outDir, w=NULL, h=NULL,
+    pvalue_cutoff=0.1) {
+
+    metabolicSur_rslts_dat = lapply(names(metabolicSur_rslts), function(c) {
+        cancer = metabolicSur_rslts[[c]]
+        cancer = cancer[cancer$p_value <0.05, ]
+        # cancer = cancer[cancer$padj <0.05, ]
+        if (nrow(cancer)>0) {
+            cancer$Cancer_type = c
+        }
+        cancer
+    }) %>% Reduce(rbind, .) %>% arrange(-HR)
+
+    logFCdat = lapply(names(metabolicSur_rslts), function(l) {
+        lr = metabolicSur_rslts[[l]] %>% dplyr::select(Feature, HR) %>%
+            setNames(c("Feature", l))
+    }) %>% Reduce(dplyr::full_join, .) %>% as.data.frame() %>%
+        tibble::column_to_rownames(var="Feature")
+    logFCdat = logFCdat[rev(order(rowSums(logFCdat))), ]
+
+    padj_dat = lapply(names(metabolicSur_rslts), function(l) {
+        # lr = metabolicSur_rslts[[l]] %>% dplyr::select(Feature, p_value) %>%
+        lr = metabolicSur_rslts[[l]] %>% dplyr::select(Feature, padj) %>%
+            setNames(c("Feature", l))
+    }) %>% Reduce(dplyr::full_join, .) %>% as.data.frame() %>%
+        tibble::column_to_rownames(var="Feature")
+    padj_dat = padj_dat[rownames(logFCdat), ]
+
+    sig_mat = matrix("", nrow=nrow(logFCdat), ncol=ncol(logFCdat))
+    sig_mat[padj_dat<pvalue_cutoff] = "*"
+
+    ann_row = unique(kegg_metab_db_table[, c("gs_name", "class")]) %>%
+        filter(gs_name %in% rownames(padj_dat)) %>%
+        arrange(class) %>%
+        tibble::column_to_rownames(var="gs_name")
+    logFCdat = logFCdat[rownames(ann_row), ,drop=FALSE]
+    padj_dat = padj_dat[rownames(ann_row), ,drop=FALSE]
+
+    # ann_colors = 
+    #     replicate(ncol(ann_row), c("0" = "snow2", "1" = "#d95f02"), 
+    #     simplify = FALSE) %>% setNames(colnames(ann_row))
+    
+    logFCdat[abs(logFCdat)>3] = 3
+    # max_abs = max(abs(logFCdat), na.rm = TRUE)
+    # # Define breaks centered at 0
+    breaks = seq(-1, 3, length.out = 101)
+    p1 = pheatmap::pheatmap(logFCdat,
+            color = colorRampPalette(c("blue", "white", "red"))(100),
+            breaks = breaks,
+            # annotation_col = ann_row,   # top bar
+            display_numbers = sig_mat,
+            number_fontsize = 50,
+            annotation_row = ann_row,
+            cluster_rows = FALSE,
+            # annotation_colors = ann_colors,
+            show_rownames=TRUE, 
+            show_colnames=TRUE,
+            fontsize = 10,
+            border_color = "white",
+            annotation_legend = TRUE,
+            main=paste0("HR (*: padj<",pvalue_cutoff,")"))
+    if (is.null(w)) {
+        w = 0.165*ncol(logFCdat)+0.05*max(nchar(rownames(logFCdat)))+5
+    }
+    if (is.null(h)) {
+        h = 0.12*nrow(logFCdat)+0.05*max(nchar(colnames(ann_row))) +2.5
+    }
+    pdf(paste0(outDir, "/HR_survival.pdf"),
+        h=h, w=w)
+    print(p1)
+    dev.off()
+}
+
