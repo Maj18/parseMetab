@@ -37,29 +37,28 @@
  #' \item{fitted.model}{The limma fit object (returned invisibly).}
  #'
  GSVAlimmaTest = function(dat, paired = TRUE, Feature.filtering = TRUE,
-     currentCovariate = NULL, meta = meta, paired_variable = "Patient",
-     OUTDIR, kegg_metab_db) {
+        currentCovariate = NULL, meta = meta, paired_variable = "Patient",
+        OUTDIR, kegg_metab_db, min.count=5) {
     meta = filter(meta, Sample%in%colnames(dat))
     # Make sure the sample are in the same order in both meta and dat:
     dat = dat[, meta$Sample]
     meta = meta %>% mutate(across(where(is.factor), droplevels))
     mapping = setNames(meta$Group, meta$Sample)
-    print("Only keep features that have at least min.nr number of values that are >5 in each group...")
     min.nr = round(max((ncol(dat)/2)*0.15, 2), 0)
+    print(paste0("Only keep features that have at least ", min.nr, 
+                        "number of values that are >5 in each group..."))
     if (Feature.filtering) {
         B = mapping[colnames(dat)] %>% as.character()
-        featureskeep = apply(dat>5, 1, function(row) {
+        featureskeep = apply(dat>min.count, 1, function(row) {
             A = row
             sum(aggregate(A~B, data=data.frame(A=A,B=B), sum, na.rm=T)[,"A"]>=min.nr)>1
         })
         dat = dat[featureskeep, ]
     }
 
-    # library(limma)
     # conda install conda-forge::r-locfit
     # conda install bioconda::bioconductor-edger
     # BiocManager::install("edgeR")
-    # library(edgeR)
     Group = factor(meta$Group)
     # Create a DEGList from the edgeR package
     dge = edgeR::DGEList(counts=dat)
@@ -81,7 +80,8 @@
     colnames(design) = gsub("Group", "", colnames(design))
     dat2 = limma::voom(dge, design, plot=T)
     # What is voom doing
-    # Counts are transformed to log2 counts per million reads (CPM), where per million reads is defined based on the normalization factors we calculated earlier
+    # Counts are transformed to log2 counts per million reads (CPM), 
+    # where per million reads is defined based on the normalization factors we calculated earlier
     # A linear model is fitted to the log2 CPM for each gene, and the residuals are calculated
     # A smoothed curve is fitted to the sqrt(residual standard deviation) by average expression (see red line in plot above)
     # The smoothed curve is used to obtain weights for each gene and sample that are passed into limma along with the log2 CPMs
@@ -99,34 +99,45 @@
     normalizedCount = matrix(as.numeric(normalizedCount),
         nrow = nrow(normalizedCount),
         ncol = ncol(normalizedCount), dimnames = dimnames(normalizedCount))
+
     param = GSVA::gsvaParam(normalizedCount, kegg_metab_db, minSize=5, maxSize=500)
-    gsva_scores = GSVA::gsva(param, verbose=TRUE)
-    write.table(
-        gsva_scores %>% as.data.frame() %>%
-                tibble::rownames_to_column(var="Features"),
-        paste0(OUTDIR, "/GSVAscores.csv"),
-        quote = F, row.names = F, col.names = T, sep="\t")
+    gsva_scores = tryCatch(GSVA::gsva(param, verbose=TRUE) %>% 
+                            as.data.frame(), error = function(e) NA)
+    if (class(gsva_scores)=="data.frame") {
+        write.table(
+            gsva_scores %>% as.data.frame() %>%
+                    tibble::rownames_to_column(var="Features"),
+            paste0(OUTDIR, "/GSVAscores.csv"),
+            quote = F, row.names = F, col.names = T, sep="\t")
+        if (paired) {
+            #Fit with correlated arrays
+            dupcor = limma::duplicateCorrelation(gsva_scores, design,
+                block=meta[,paired_variable,drop=T])
+            fit = limma::lmFit(gsva_scores, design, block=meta[,paired_variable,drop=T],
+                correlation=dupcor$consensus)
+        } else { fit = limma::lmFit(gsva_scores, design) }
 
-    if (paired) {
-        #Fit with correlated arrays
-        dupcor = limma::duplicateCorrelation(gsva_scores, design,
-            block=meta[,paired_variable,drop=T])
-        fit = limma::lmFit(gsva_scores, design, block=meta[,paired_variable,drop=T],
-            correlation=dupcor$consensus)
-    } else { fit = limma::lmFit(gsva_scores, design) }
-
-    # Limma trend to refine gene-level variance estimates
-    gssizes = sapply(kegg_metab_db[rownames(fit$coefficients)], function(gs) {
-        length(gs)
-    })
-    fit.con = limma::eBayes(fit, robust = TRUE, trend=gssizes)
-    rlst_interest =
-        limma::topTable(fit.con, n=Inf, coef=levels(meta$Group)[2]) %>%
-        arrange(-t)
-    
+        # Limma trend to refine gene-level variance estimates
+        # gssizes = sapply(kegg_metab_db[rownames(fit$coefficients)], function(gs) {
+        #     length(gs)
+        # })
+        # fit.con = limma::eBayes(fit, robust = TRUE, trend=gssizes)
+        fit.con = limma::eBayes(fit, robust = TRUE, trend=TRUE)
+        rlst_interest =
+            limma::topTable(fit.con, n=Inf, coef=levels(meta$Group)[2]) %>%
+            arrange(-t)
+        write.table(
+            rlst_interest %>% as.data.frame() %>%
+                    tibble::rownames_to_column(var="Features"),
+            paste0(OUTDIR, "/limmaResult.csv"),
+            quote = F, row.names = F, col.names = T, sep="\t")
+    } else {
+        fit = NULL
+        rlst_interest = NULL
+    }
     return(list(rslt_of_interest=rlst_interest, gsva=gsva_scores, fitted.model=fit))
-
 }
+
 
 
 #' @import dplyr
@@ -181,7 +192,7 @@ getdb_metabolism = function(databaseDIR) {
 
     # Create KEGG metabolic database
     kegg_metab = read.delim(
-        paste0(outdir, "/KEGG_metabolism/KEGG_metabolism.csv"),
+        paste0(databaseDIR, "/KEGG_metabolism.csv"),
         header = TRUE, stringsAsFactors = FALSE) %>%
         mutate(class = gsub("Metabolism; ", "", class))
     kegg_metab_db =
@@ -231,16 +242,14 @@ getdb_metabolism = function(databaseDIR) {
             as.data.frame()%>%setNames(c("name", "size"))) %>%
         rbind(pathway_hierachy %>% pull(Depth2) %>% unique() %>% table() %>%
             as.data.frame() %>% setNames(c("name","size"))) %>%
-            mutate(shortName=gsub("etabolism",".",paste0(name,"(",size,")"))) %>%
-            mutate(shortName=gsub("iosynthesis","iosyn.", shortName)) %>%
-            # mutate(shortName=gsub("secondary metabolites", "sec. mets.", shortName)) %>%
-            mutate(shortName = gsub(" m.", "", shortName)) %>%
-            mutate(shortName = gsub(" biosyn. and m.", "", shortName)) %>%
-            mutate(shortName = gsub("M. of ", "", shortName)) %>%
-            mutate(shortName = gsub(" and m.", "", shortName)) %>%
-            mutate(shortName = gsub(" biosyn. and", "", shortName)) %>%
-            mutate(shortName = gsub(" biodegrad. and", "", shortName)) %>%
-            mutate(shortName = gsub("Biosyn. of ", "", shortName))
+            mutate(shortName = gsub(" and metabolism", "", paste0(name,"(",size,")"))) %>%
+            mutate(shortName = gsub(" metabolism", "", shortName)) %>%
+            mutate(shortName = gsub("Metabolism of ", "", shortName)) %>%
+            mutate(shortName = gsub(" biosynthesis and", "", shortName)) %>%
+            mutate(shortName = gsub(" biosynthesis", "", shortName)) %>%
+            mutate(shortName = gsub(" biodegradation and", "", shortName)) %>%
+            mutate(shortName = gsub("Biosynthesis of ", "", shortName)) %>%
+            mutate(shortName = stringr::str_to_title(shortName))
     vertices$shortName[!vertices$name%in%unique(pathway_hierachy$Depth1)] = NA
     mygraph = igraph::graph_from_data_frame(edges, vertices=vertices)
     p = ggraph::ggraph(mygraph, layout = 'circlepack', weight=size) +
@@ -274,13 +283,21 @@ getdb_metabolism = function(databaseDIR) {
  #'   and `sample.submitter_id` which are used to select normal samples.
  #' @param OUTDIR Character scalar. Directory where output plots (PDF) will be
  #'   written. If `NULL`, plots may be returned instead of being saved.
+ #' @param Condition_column Column for conditions.
+ #' @param Condition.control Name of the control group in Condition_column.
+ #' @param sample_column Column for samples.
  #'
  #' @return Invisibly returns a list containing the two ggplot2 objects (all
  #'   samples and normal-only samples) and the path to the saved PDF (if
  #'   `OUTDIR` is provided). A PDF named `GSVA_samples.pdf` is written to
  #'   `OUTDIR` when `OUTDIR` is non-NULL.
  #'
- visualizeGSVSscoresGroup = function(GSVA_limma_rslt_gsva, paired_data, OUTDIR) {
+ visualizeGSVSscoresGroup = function(
+    GSVA_limma_rslt_gsva, paired_data, OUTDIR,
+    Condition_column = "sample_type",
+    Condition.control = "Solid Tissue Normal",
+    sample_column = "sample.submitter_id",
+    w=5.5, h=3.0, title="TCGA") {
     # GSVA scores for all samples
     dat = lapply(seq_along(GSVA_limma_rslt_gsva), function(i) {
         data.frame(
@@ -295,16 +312,18 @@ getdb_metabolism = function(databaseDIR) {
     P1 = dat %>% mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
             ggplot2::ggplot(., ggplot2::aes(x=Cancer_type, y=means)) +
             ggplot2::geom_boxplot(fill="green4") +
-            ggplot2::labs(title = "TCGA",
+            ggplot2::labs(title = title,
                 x="Cancer_type", y="Mean Metab. Act.")+
             ggplot2::theme_minimal() +
-            ggplto2::theme(legend.position="none",
+            ggplot2::theme(legend.position="none",
                 axis.text.x = element_text(angle = 90, hjust=1, vjust=0))
 
     # GSVA scores for healthy control samples only
     dat = lapply(seq_along(GSVA_limma_rslt_gsva), function(j) {
-        normal_samples = paired_data[[j]] %>%
-            filter(sample_type=="Solid Tissue Normal") %>% pull(sample.submitter_id)
+        normal_samples = paired_data[[j]] # %>%
+            # filter(sample_type=="Solid Tissue Normal") %>% pull(sample.submitter_id)
+        normal_samples = normal_samples[normal_samples[[Condition_column]]==Condition.control, ]
+        normal_samples = normal_samples[[sample_column]]
         gsva = GSVA_limma_rslt_gsva[[j]] %>% .[, normal_samples]
         data.frame(
             means = (rowSums(gsva, na.rm=TRUE)/ncol(gsva)) %>% as.numeric(),
@@ -316,16 +335,15 @@ getdb_metabolism = function(databaseDIR) {
     P2 = dat %>% mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
             ggplot2::ggplot(., ggplot2::aes(x=Cancer_type, y=means)) +
             ggplot2::geom_boxplot(fill="green4") +
-            ggplot2::labs(title = "TCGA",
+            ggplot2::labs(title = title,
                 x="Cancer_type", y="Mean Norm. Metab. Act.")+
             ggplot2::theme_minimal() +
             ggplot2::theme(legend.position="none",
                 axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
 
-    pdf(paste0(OUTDIR, "/GSVA_samples.pdf"), w=5.5, h=3.0)
+    pdf(paste0(OUTDIR, "/GSVA_samples.pdf"), w=w, h=h)
         print(cowplot::plot_grid(P1, P2))
     dev.off()
-
 }
 
 
@@ -368,17 +386,14 @@ getdb_metabolism = function(databaseDIR) {
                    Psize = as.numeric(pathway_sizes),
                    Class = pathway_class_mapping[names(pathway_sizes)])
     }) %>% Reduce(rbind, .) %>%
-        mutate(Class = gsub("etabolism",".", Class)) %>%
-        mutate(Class = gsub("thesis", ".", Class)) %>%
-        # mutate(Class = gsub("secondary metabolites", "sec. mets.", Class)) %>%
-        mutate(Class = gsub("biodegradation", "biodegrad.", Class)) %>%
-        mutate(Class = gsub(" m.", "", Class)) %>%
-        mutate(Class = gsub(" biosyn. and m.", "", Class)) %>%
-        mutate(Class = gsub("M. of ", "", Class)) %>%
-        mutate(Class = gsub(" and m.", "", Class)) %>%
-        mutate(Class = gsub(" biosyn. and", "", Class)) %>%
-        mutate(Class = gsub(" biodegrad. and", "", Class)) %>%
-        mutate(Class = gsub("Biosyn. of ", "", Class)) %>%
+        mutate(Class = gsub(" and metabolism", "", Class)) %>%
+        mutate(Class = gsub(" metabolism", "", Class)) %>%
+        mutate(Class = gsub("Metabolism of ", "", Class)) %>%
+        mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
+        mutate(Class = gsub(" biosynthesis", "", Class)) %>%
+        mutate(Class = gsub(" biodegradation and", "", Class)) %>%
+        mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
+        mutate(Class = stringr::str_to_title(Class)) %>%
         ggplot2::ggplot(., ggplot2::aes(x=Class, y=Psize)) +
         ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(# title = "TCGA",
@@ -421,7 +436,12 @@ getdb_metabolism = function(databaseDIR) {
  #'   the path to the saved PDF file. The primary side-effect is creation of a
  #'   PDF file in \code{OUTDIR} named \file{GSVA_pathway_class.pdf}.
  #'
- visualizeGSVSscoresClass = function(GSVA_limma_rslt, kegg_metab_db_table, paired_data, OUTDIR) {
+ visualizeGSVSscoresClass = function(
+    GSVA_limma_rslt, kegg_metab_db_table, paired_data, OUTDIR,
+    Condition_column = "sample_type",
+    Condition.control = "Solid Tissue Normal",
+    sample_column = "sample.submitter_id",
+    w=5.5, h=3.5) {
     dat = lapply(seq_along(GSVA_limma_rslt), function(i) {
         s = names(GSVA_limma_rslt)[i]
         pathway_means = rowSums(GSVA_limma_rslt[[i]]$gsva,na.rm=TRUE)/ncol(GSVA_limma_rslt[[i]]$gsva)
@@ -430,19 +450,16 @@ getdb_metabolism = function(databaseDIR) {
             unique()
         kegg_metab_db_mapping = setNames(kegg_metab_db_table$class, kegg_metab_db_table$gs_name)
         data.frame(Pathway = names(pathway_means),
-                    Means = as.numeric(pathway_means),
-                    Class = kegg_metab_db_mapping[names(pathway_means)]) %>%
-                    mutate(Class = gsub("etabolism",".", Class)) %>%
-                    mutate(Class = gsub("thesis", ".", Class)) %>%
-                    # mutate(Class = gsub("secondary metabolites", "sec. mets.", Class)) %>%
-                    mutate(Class = gsub("biodegradation", "biodegrad.", Class)) %>%
-                    mutate(Class = gsub(" m.", "", Class)) %>%
-                    mutate(Class = gsub(" biosyn. and m.", "", Class)) %>%
-                    mutate(Class = gsub("M. of ", "", Class)) %>%
-                    mutate(Class = gsub(" and m.", "", Class)) %>%
-                    mutate(Class = gsub(" biosyn. and", "", Class)) %>%
-                    mutate(Class = gsub(" biodegrad. and", "", Class)) %>%
-                    mutate(Class = gsub("Biosyn. of ", "", Class))
+            Means = as.numeric(pathway_means),
+            Class = kegg_metab_db_mapping[names(pathway_means)]) %>%
+            mutate(Class = gsub(" and metabolism", "", Class)) %>%
+            mutate(Class = gsub(" metabolism", "", Class)) %>%
+            mutate(Class = gsub("Metabolism of ", "", Class)) %>%
+            mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
+            mutate(Class = gsub(" biosynthesis", "", Class)) %>%
+            mutate(Class = gsub(" biodegradation and", "", Class)) %>%
+            mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
+            mutate(Class = stringr::str_to_title(Class))
         }) %>% Reduce(rbind, .)
         Class_order = dat %>% group_by(Class) %>%
             summarise(Means=mean(Means)) %>% arrange(Means) %>% pull(Class) %>% unique()
@@ -457,8 +474,10 @@ getdb_metabolism = function(databaseDIR) {
 
     dat = lapply(seq_along(GSVA_limma_rslt), function(j) {
         s = names(GSVA_limma_rslt)[j]
-        normal_samples = paired_data[[s]] %>%
-            filter(sample_type=="Solid Tissue Normal") %>% pull(sample.submitter_id)
+        normal_samples = paired_data[[s]] # %>%
+            # filter(sample_type=="Solid Tissue Normal") %>% pull(sample.submitter_id)
+        normal_samples = normal_samples[normal_samples[[Condition_column]]==Condition.control, ]
+        normal_samples = normal_samples[[sample_column]]
         gsva = GSVA_limma_rslt[[s]]$gsva %>% .[, normal_samples]
         pathway_means = rowSums(gsva,na.rm=TRUE)/ncol(gsva)
         kegg_metab_db_table =
@@ -466,22 +485,19 @@ getdb_metabolism = function(databaseDIR) {
             unique()
         kegg_metab_db_mapping = setNames(kegg_metab_db_table$class, kegg_metab_db_table$gs_name)
         data.frame(Pathway = names(pathway_means),
-                    Means = as.numeric(pathway_means),
-                    Class = kegg_metab_db_mapping[names(pathway_means)]) %>%
-                    mutate(Class = gsub("etabolism",".",Class)) %>%
-                    mutate(Class = gsub("thesis", ".", Class)) %>%
-                    # mutate(Class = gsub("secondary metabolites", "sec. mets.", Class)) %>%
-                    mutate(Class = gsub("biodegradation", "biodegrad.", Class)) %>%
-                    mutate(Class = gsub(" m.", "", Class)) %>%
-                    mutate(Class = gsub(" biosyn. and m.", "", Class)) %>%
-                    mutate(Class = gsub("M. of ", "", Class)) %>%
-                    mutate(Class = gsub(" and m.", "", Class)) %>%
-                    mutate(Class = gsub(" biosyn. and", "", Class)) %>%
-                    mutate(Class = gsub(" biodegrad. and", "", Class)) %>%
-                    mutate(Class = gsub("Biosyn. of ", "", Class))
-        }) %>% Reduce(rbind, .)
-        Class_order = dat %>% group_by(Class) %>%
-            summarise(Means=mean(Means)) %>% arrange(Means) %>% pull(Class) %>% unique()
+            Means = as.numeric(pathway_means),
+            Class = kegg_metab_db_mapping[names(pathway_means)]) %>%
+            mutate(Class = gsub(" and metabolism", "", Class)) %>%
+            mutate(Class = gsub(" metabolism", "", Class)) %>%
+            mutate(Class = gsub("Metabolism of ", "", Class)) %>%
+            mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
+            mutate(Class = gsub(" biosynthesis", "", Class)) %>%
+            mutate(Class = gsub(" biodegradation and", "", Class)) %>%
+            mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
+            mutate(Class = stringr::str_to_title(Class))
+    }) %>% Reduce(rbind, .)
+    Class_order = dat %>% group_by(Class) %>%
+        summarise(Means=mean(Means)) %>% arrange(Means) %>% pull(Class) %>% unique()
     P2 = dat %>% mutate(Class = factor(Class, levels=Class_order)) %>%
             ggplot2::ggplot(., ggplot2::aes(x=Class, y=Means)) +
             ggplot2::geom_boxplot(fill="green4") +
@@ -491,8 +507,8 @@ getdb_metabolism = function(databaseDIR) {
             ggplot2::theme(legend.position="none",
                 axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
 
-    pdf(paste0(OUTDIR, "/GSVA_pathway_class.pdf"), w=5.5, h=3.5)
-        cowplot::plot_grid(P1, P2)
+    pdf(paste0(OUTDIR, "/GSVA_pathway_class.pdf"), w=w, h=h)
+        print(cowplot::plot_grid(P1, P2))
     dev.off()
 }
 
@@ -515,11 +531,14 @@ getdb_metabolism = function(databaseDIR) {
  #' @return Invisibly returns the path to the saved PDF file; the primary
  #'   side-effect is the creation of \file{Sig_pathway_nr.pdf} in \code{OUTDIR}.
  #'
- visualizeSigNr = function(OUTDIR, GSVA_limma_rslt) {
-    pdf(paste0(OUTDIR, "/Sig_pathway_nr.pdf"), w=3, h=3.5)
+ visualizeSigNr = function(
+    OUTDIR, GSVA_limma_rslt, 
+    significance_statistic="adj.P.Val", 
+    sig.cutoff=0.05, w=3, h=3.5) {
+    pdf(paste0(OUTDIR, "/Sig_pathway_nr.pdf"), w=w, h=h)
         sig_nr = lapply(names(GSVA_limma_rslt), function(cancer) {
-            rslt = GSVA_limma_rslt[[cancer]]$rslt_of_interest %>%
-                filter(adj.P.Val<0.05)
+            rslt = GSVA_limma_rslt[[cancer]]$rslt_of_interest
+            rslt = rslt[rslt[[significance_statistic]]<sig.cutoff, ]
             data.frame(up = rslt %>% filter(logFC>0) %>% nrow(),
                 down = -(rslt %>% filter(logFC<0) %>% nrow())) %>%
                 t() %>% as.data.frame() %>% setNames(cancer)
@@ -594,19 +613,23 @@ getdb_metabolism = function(databaseDIR) {
 #' }
 #' @export
 
-makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OUTDIRV, 
-    Depth="gs_name", lowfigure=F, title = "Dysregulated pathways_TCGA", 
-    suffix="TCGA", taskHierarchy=cfs, nested=T, top=FALSE,
-    color_low="skyblue", color_high="purple"){
+makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val", 
+        sig.cutoff, adj.P.Val.cutoff=NULL, w=NULL, h=NULL, OUTDIRV, 
+        Depth="gs_name", lowfigure=F, title = "Dysregulated pathways_TCGA", 
+        suffix="TCGA", taskHierarchy=cfs, nested=T, top=FALSE,
+        color_low="skyblue", color_high="purple"){
+    if (!is.null(adj.P.Val.cutoff)) {
+        sig.cutoff = adj.P.Val.cutoff
+    }
     taskHierarchy$Task = taskHierarchy[[Depth]]
     rlst_long = lapply(seq_along(rlst_list), function(i) {
         rlst = rlst_list[[i]]
         rlst$Cancer = names(rlst_list)[i]
         rlst$Regulation = 
-            ifelse(rlst$logFC>0&rlst$adj.P.Val<adj.P.Val.cutoff, "Up", 
-            ifelse (rlst$logFC<0&rlst$adj.P.Val<adj.P.Val.cutoff, "Down", "NonSig"))
-        rlst %>% tibble::rownames_to_column(var="Task") %>% 
-            filter(adj.P.Val<adj.P.Val.cutoff)
+            ifelse(rlst$logFC>0&rlst[[sig_statistic]]<sig.cutoff, "Up", 
+            ifelse (rlst$logFC<0&rlst[[sig_statistic]]<sig.cutoff, "Down", "NonSig"))
+        rlst = rlst %>% tibble::rownames_to_column(var="Task")
+        rlst[rlst[[sig_statistic]]<sig.cutoff, ]
     }) %>% Reduce(rbind, .) %>%
         dplyr::left_join(taskHierarchy) %>%
             mutate(logFC=round(logFC, 2)) %>%
@@ -633,11 +656,11 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
     rlst_long$t[rlst_long$t< -5] = -5
   
     p = ggplot2::ggplot(data=rlst_long, mapping=ggplot2::aes_string(x="Cancer", y="Task")) +
-        ggplot2::geom_point(ggplot2::aes(size=adj.P.Val, color=t, shape=Regulation))
+        ggplot2::geom_point(ggplot2::aes_string(size=sig_statistic, color="t", shape="Regulation"))
     if (nested) p = p + ggh4x::facet_nested(Class~., scales = "free_y", space = "free")
     p = p + ggplot2::scale_shape_manual(values = c("Up" = 18, "Down" = 20)) +
         ggplot2::ggtitle(title) +
-        ggplot2::ylab("") +  ggplot2::labs(size="adj.P.Val") +
+        ggplot2::ylab("") +  ggplot2::labs(size=sig_statistic) +
         ggplot2::scale_color_gradient2(low=color_low, mid="snow2", high=color_high, midpoint=0) +
         # ggplot2::scale_color_gradient2(low="blue", mid="snow2", high="red", midpoint=0) +
         ggplot2::scale_size(trans="reverse") +
@@ -648,7 +671,7 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
             axis.title =  ggplot2::element_blank(),
             strip.text.y = ggplot2::element_text(size = 10, angle = 90, hjust=0.5),
             axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0)) +
-        ggplot2::labs(caption=paste0("adj.P.ValCutoff = ",adj.P.Val.cutoff,", pAdjustMethod = BH"))
+        ggplot2::labs(caption=paste0(sig_statistic,"Cutoff = ",sig.cutoff,", pAdjustMethod = BH"))
 
     if (lowfigure) {
       p = p + ggplot2::theme(
@@ -669,8 +692,8 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
         h = ((unique(rlst_long$gs_name) %>% length())/6) + 3
         w = (nchar(unique(rlst_long$gs_name)) %>% max())/11 + 3.5
     }
-    pdf(paste0(OUTDIRV,"/Dotplot_all_adj.P.ValCutoff",
-        adj.P.Val.cutoff,"_",suffix,".pdf"),w=w,h=h)
+    pdf(paste0(OUTDIRV,"/Dotplot_all_", sig_statistic, "Cutoff",
+        sig.cutoff,"_",suffix,".pdf"),w=w,h=h)
         show(p)
     dev.off()
 }
@@ -703,50 +726,92 @@ makeLimmaDotplot_TCGA = function(rlst_list, adj.P.Val.cutoff, w=NULL, h=NULL, OU
  #'   is creation of \file{diffEffectBoxplot_system.pdf} in \code{OUT_DIR}.
  #'
  diffEffectBoxplot_bySystem_GSVA = function(
-     rlst_list, taskHierarchy, OUT_DIR, w = 2, h = 3.5, title = "Zhou2020") {
-    B_Z_N0 = lapply(names(rlst_list), function(cancer){
-        temp = rlst_list[[cancer]]$rslt_of_interest
-        temp$Cancer = cancer
-        temp %>% tibble::rownames_to_column(var="gs_name") 
-        }) %>% Reduce(rbind, .) %>% as.data.frame() %>% 
+        rlst_list, taskHierarchy, OUT_DIR, 
+        weight.effect.by.gene=TRUE, effect.statistic="t",
+        w = 2, h = 3.5, title = "Zhou2020",
+        winsorize=TRUE, probs=0.05, suffix="",
+        sig.statistic="adj.P.Val", sig.cutoff=0.2) {
+    depth = function(x) {
+        if (!is.list(x)) return(0)
+        1 + max(sapply(x, depth))
+        }
+    if (depth(rlst_list)==5) {
+        B_Z_N0 = lapply(names(rlst_list), function(study){
+            lapply(names(rlst_list[[study]]), function(c) {
+                temp = rlst_list[[study]][[c]]$rslt_of_interest
+                temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+                temp$Cancer = c
+                temp = as.data.frame(temp) %>% tibble::rownames_to_column(var="gs_name")
+                temp$Source = study
+                temp
+            }) %>% Reduce(rbind, .) %>% as.data.frame()
+        }) %>% Reduce(rbind, .) %>% as.data.frame() 
+    } else {
+        B_Z_N0 = lapply(names(rlst_list), function(cancer){
+            temp = rlst_list[[cancer]]$rslt_of_interest
+            temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+            temp$Cancer = cancer
+            temp %>% tibble::rownames_to_column(var="gs_name") 
+            }) %>% Reduce(rbind, .) %>% as.data.frame() 
+    }
+    B_Z_N0 = B_Z_N0 %>%
         dplyr::left_join(taskHierarchy %>% unique()) %>%
-        mutate(class = gsub("etabolism",".",class)) %>%
-        mutate(class = gsub("thesis", ".", class)) %>%
-        mutate(class = gsub("biodegradation", "biodegrad.", class)) %>%
-        mutate(class = gsub(" m.", "", class)) %>%
-        mutate(class = gsub(" biosyn. and m.", "", class)) %>%
-        mutate(class = gsub("M. of ", "", class)) %>%
-        mutate(class = gsub(" and m.", "", class)) %>%
-        mutate(class = gsub(" biosyn. and", "", class)) %>%
-        mutate(class = gsub(" biodegrad. and", "", class)) %>%
-        mutate(class = gsub("Biosyn. of ", "", class))
-
-    B_Z_N0$AveExpr_scaled = 
-        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
-    B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
-    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
-        quantile(B_Z_N0$logFC_weighted, probs=0.95)
-    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
-        quantile(B_Z_N0$logFC_weighted, probs=0.05)   
+        mutate(class = gsub(" metabolism", "", class)) %>%
+        mutate(class = gsub("Metabolism of ", "", class)) %>%
+        mutate(class= gsub(" biosynthesis and", "", class)) %>%
+        mutate(class = gsub(" biosynthesis", "", class)) %>%
+        mutate(class = gsub(" biodegradation and", "", class)) %>%
+        mutate(class = gsub("Biosynthesis of ", "", class)) %>%
+        mutate(class = stringr::str_to_title(class))
+    B_Z_N0$effect = B_Z_N0[[effect.statistic]]
+    if (weight.effect.by.gene) {
+        # B_Z_N0$AveExpr_scaled = 
+        #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+        B_Z_N0$AveExpr_scaled = rev(rank(B_Z_N0$AveExpr, ties.method = "average"))
+        B_Z_N0$effect_weighted = (B_Z_N0$effect)/(B_Z_N0$AveExpr_scaled)
+    } else {
+        B_Z_N0$effect_weighted = B_Z_N0$effect
+    }
+    if (winsorize){
+        B_Z_N0$effect_weighted[B_Z_N0$effect_weighted>quantile(B_Z_N0$effect_weighted, probs=(1-probs))] = 
+            quantile(B_Z_N0$effect_weighted, probs=(1-probs))
+        B_Z_N0$effect_weighted[B_Z_N0$effect_weighted<quantile(B_Z_N0$effect_weighted, probs=probs)] = 
+            quantile(B_Z_N0$effect_weighted, probs=probs)   
+    }
 
     System_orderZ = B_Z_N0 %>% unique() %>% group_by(class) %>%
-        dplyr::summarise(meanEffect = median(logFC_weighted, na.rm=T), .groups = "drop") %>% 
+        # dplyr::summarise(meanEffect = median(effect_weighted, na.rm=T), .groups = "drop") %>% 
+        dplyr::summarise(meanEffect = median(effect_weighted, na.rm=T), .groups = "drop") %>% 
         arrange(meanEffect) %>% pull(class) %>% unique()
 
     B_Z_N = B_Z_N0 %>%
-        dplyr::mutate(class=factor(class, levels = System_orderZ)) %>%
-        ggplot2::ggplot(., ggplot2::aes(x=class, y=logFC_weighted)) +
-        ggplot2::geom_boxplot(fill="green4") +
-        ggplot2::labs(title = title,
-            x="Class", y="Wei. Diff. Effect")+
+        dplyr::mutate(class=factor(class, levels = System_orderZ))
+    if (depth(rlst_list)==5) {
+        B_Z_N = B_Z_N %>% 
+            ggplot2::ggplot(., ggplot2::aes(x=class, y=effect_weighted, fill=Source)) +
+            ggplot2::geom_violin(position = position_dodge(width = 0.85),  # reduce spacing
+                width=2, trim=FALSE, alpha=0.75, col=NA)+
+            scale_fill_manual(values = 
+                c("#E69F00", "#56B4E9","#999999","#F0E442","#009E73","#0072B2","#D55E00","#CC79A7"))
+    } else {
+        B_Z_N = B_Z_N %>%  
+            ggplot2::ggplot(., ggplot2::aes(x=class, y=effect_weighted)) +
+            ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color=NA, alpha=0.6, width=1.1)
+    }
+        # ggplot2::ggplot(., ggplot2::aes(x=class, y=effect_weighted)) +
+        # ggplot2::geom_boxplot(fill="green4") +
+     B_Z_N = B_Z_N + ggplot2::labs(title = title,
+            x="Class", y=effect.statistic)+
+        ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 0.5) +
         ggplot2::theme_minimal() +
-        ggplot2::theme(legend.position="none",
-            axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
+        ggplot2::theme(legend.position="right",
+            axis.text.x = ggplot2::element_text(angle = 135, hjust=1, vjust=1))
 
-    pdf(paste0(OUT_DIR, "/diffEffectBoxplot_system.pdf"), w=w, h=h)
+    pdf(paste0(OUT_DIR, "/diffEffectBoxplot_system",suffix,".pdf"), w=w, h=h)
         print(B_Z_N)
     dev.off()
-}
+ }
+
 
 
  #' Differential effect boxplot by cancer/group
@@ -780,8 +845,9 @@ diffEffectBoxplot_byCancer_GSVA = function(
         temp %>% tibble::rownames_to_column(var="gs_name") 
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>% unique()
 
-    B_Z_N0$AveExpr_scaled = 
-        (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    # B_Z_N0$AveExpr_scaled = 
+    #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+    B_Z_N0$AveExpr_scaled = rev(rank(B_Z_N0$AveExpr, ties.method = "average")) 
     B_Z_N0$logFC_weighted = (B_Z_N0$logFC)/(B_Z_N0$AveExpr_scaled)
     B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
         quantile(B_Z_N0$logFC_weighted, probs=0.95)
@@ -1240,7 +1306,6 @@ diffEffectBoxplot_byCancer_GSVA = function(
 #' # res <- limmaTest_CellFie(dat, paired = TRUE, meta = meta,
 #' #                         paired_variable = "Patient")
 #' @export
-
 limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL, 
     checkCovariate=FALSE, meta=meta, paired_variable="Patient") {
     meta = filter(meta, Sample%in%colnames(dat))
@@ -1285,7 +1350,7 @@ limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL,
       #n refers to the number of top-ranked genes to be returned.
     } else {rlst_co = NA}
     
-    fit.con = limma::eBayes(fit, robust = TRUE)
+    fit.con = limma::eBayes(fit, robust = TRUE, trend=T)
     rlst_interest = limma::topTable(fit.con, n=Inf, coef=levels(meta$Condition)[2]) %>%
         arrange(-t) 
     
@@ -1946,41 +2011,91 @@ SigNrBarplot = function(rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
 #' }
 #' @export
 
-diffEffectBoxplot_bySystem = function(rlst_list, cf, OUT_DIR, w=2, h=3.5, title="Pan-cancer tasks") {
-    B_Z_N0 = lapply(names(rlst_list), function(cancer){
-        temp = rlst_list[[cancer]]$rslt_of_interest
-        temp$Cancer = cancer
-        temp %>% tibble::rownames_to_column(var="Depth3") 
-    }) %>% Reduce(rbind, .) %>% as.data.frame() %>% 
-    dplyr::left_join(cf %>% dplyr::select(Depth1, Depth3) %>% unique())
+diffEffectBoxplot_bySystem = function(rlst_list, cf, 
+    OUT_DIR, w=2, h=3.5, title="Pan-cancer tasks", sig.statistic="P.Value", sig.cutoff=0.05,
+    weight.effect.by.gene = FALSE, winsorize.effect = T, prob=0.05) {
+    depth = function(x) {
+        if (!is.list(x)) return(0)
+        1 + max(sapply(x, depth))
+        }
+    if (depth(rlst_list)==5) {
+        B_Z_N0 = lapply(names(rlst_list), function(study) {
+            rlst = rlst_list[[study]]
+            temp2 = lapply(names(rlst), function(c){
+                # print(c)
+                temp = rlst[[c]]$rslt_of_interest
+                temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+                temp$Cancer = c
+                if (!"Depth3" %in% colnames(temp)) {
+                    temp = as.data.frame(temp) %>% 
+                        tibble::rownames_to_column(var="Depth3") 
+                }
+                temp$Source = study
+                temp
+            }) %>% Reduce(rbind, .) %>% as.data.frame()
+            if (!"Depth1" %in% colnames(temp2)) {
+                temp2 = temp2 %>% dplyr::left_join(cf[[study]] %>% 
+                    dplyr::select(Depth1, Depth3) %>% unique())
+            }
+            temp2
+            }) %>% Reduce(rbind, .) %>% as.data.frame()
+    } else {
+        B_Z_N0 = lapply(names(rlst_list), function(c){
+            temp = rlst_list[[c]]$rslt_of_interest
+            temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+            temp$Cancer = c
+            as.data.frame(temp) %>% tibble::rownames_to_column(var="Depth3") 
+        }) %>% Reduce(rbind, .) %>% as.data.frame() %>% 
+        dplyr::left_join(cf %>% dplyr::select(Depth1, Depth3) %>% unique())
+    }
+    B_Z_N0$effect = B_Z_N0$t
+    if (weight.effect.by.gene) {
+        B_Z_N0$AveExpr = rev(rank(B_Z_N0$AveExpr, ties.method = "average")) #2^(B_Z_N0$AveExpr)
+        # B_Z_N0$AveExpr_scaled = 
+        #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
+        B_Z_N0$effect_weighted = B_Z_N0$effect*B_Z_N0$AveExpr
+    } else {
+        B_Z_N0$effect_weighted = B_Z_N0$effect
+    }
 
-    B_Z_N0$AveExpr = rev(rank(B_Z_N0$AveExpr, ties.method = "average")) #2^(B_Z_N0$AveExpr)
-    # B_Z_N0$AveExpr_scaled = 
-    #     (B_Z_N0$AveExpr-min(B_Z_N0$AveExpr))/(max(B_Z_N0$AveExpr)-min(B_Z_N0$AveExpr))
-    B_Z_N0$logFC_weighted = B_Z_N0$logFC*B_Z_N0$AveExpr
-    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted>quantile(B_Z_N0$logFC_weighted, probs=0.95)] = 
-        quantile(B_Z_N0$logFC_weighted, probs=0.95)
-    B_Z_N0$logFC_weighted[B_Z_N0$logFC_weighted<quantile(B_Z_N0$logFC_weighted, probs=0.05)] = 
-        quantile(B_Z_N0$logFC_weighted, probs=0.05) 
+    if (winsorize.effect) {
+        B_Z_N0$effect_weighted[B_Z_N0$effect_weighted>quantile(B_Z_N0$effect_weighted, probs=(1-prob))] = 
+            quantile(B_Z_N0$effect_weighted, probs=(1-prob))
+        B_Z_N0$effect_weighted[B_Z_N0$effect_weighted<quantile(B_Z_N0$effect_weighted, probs=prob)] = 
+            quantile(B_Z_N0$effect_weighted, probs=prob) 
+    }
 
     System_orderZ = B_Z_N0 %>% unique() %>% group_by(Depth1) %>%
-        dplyr::summarise(meanEffect = median(logFC_weighted, na.rm=T), .groups = "drop") %>% 
+        dplyr::summarise(meanEffect = median(effect_weighted, na.rm=T), .groups = "drop") %>% 
         arrange(meanEffect) %>% pull(Depth1) %>% unique()
 
     B_Z_N = B_Z_N0 %>%
-        dplyr::mutate(System=factor(Depth1, levels = System_orderZ)) %>%
-        ggplot2::ggplot(., ggplot2::aes(x=System, y=logFC_weighted)) +
-        ggplot2::geom_boxplot(fill="green4") +
-        ggplot2::labs(title = title,
-            x="System", y="Wei. Diff. Effect")+
+        dplyr::mutate(System=factor(Depth1, levels = System_orderZ)) 
+    if (depth(rlst_list)==5) {
+        B_Z_N = B_Z_N %>% 
+            ggplot2::ggplot(., ggplot2::aes(x=System, y=effect_weighted, fill=Source)) +
+            ggplot2::geom_violin(position = position_dodge(width = 0.85),  # reduce spacing
+                width = 2, trim=FALSE, alpha=0.75, col=NA)+
+            scale_fill_manual(values = 
+                c("#E69F00", "#56B4E9","#999999","#F0E442","#009E73","#0072B2","#D55E00","#CC79A7"))
+    } else {
+        B_Z_N = B_Z_N %>%  
+            ggplot2::ggplot(., ggplot2::aes(x=System, y=effect_weighted)) +
+            ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color=NA, alpha=0.6, width=1.1)
+    }
+
+    B_Z_N = B_Z_N + ggplot2::labs(title = title,
+            x="System", y="t")+
+        ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 0.5) +
         ggplot2::theme_minimal() +
-        ggplot2::theme(legend.position="none",
-            axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
+        ggplot2::theme(legend.position="right",
+            axis.text.x = ggplot2::element_text(angle = 135, hjust=1, vjust=1))
 
     pdf(paste0(OUT_DIR, "/diffEffectBoxplot_system.pdf"), w=w, h=h)
         print(B_Z_N)
     dev.off()
 }
+
 
 #' Boxplot of limma differential effect (t statistic) by cancer type
 #'
@@ -2035,7 +2150,7 @@ diffEffectBoxplot_byCancer = function(rlst_list, OUT_DIR, w=2.75, h=3.0, title="
     B_Z_N = B_Z_N0 %>%
         dplyr::mutate(Cancer=factor(Cancer_type, levels = Cancer_orderZ)) %>%
         ggplot2::ggplot(., ggplot2::aes(x=Cancer, y=logFC_weighted)) +
-        ggplot2::geom_boxplot(fill="green4") +
+        # ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(title = title,
             x="Cancer", y="Wei. Diff. effect")+
         ggplot2::theme_minimal() +
@@ -2047,4 +2162,101 @@ diffEffectBoxplot_byCancer = function(rlst_list, OUT_DIR, w=2.75, h=3.0, title="
     dev.off()
 }
 
+# library
+library(tidyverse)
+library(viridis)
 
+getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
+    # Set a number of 'empty bar' to add at the end of each group
+    empty_bar = 2
+    nObsType = nlevels(as.factor(data$observation))
+    data$group = as.factor(data$group)
+    to_add = data.frame( matrix(NA, empty_bar*nlevels(data$group)*nObsType, ncol(data)) )
+    colnames(to_add) = colnames(data)
+    # to_add[(nrow(to_add) + 1):(nrow(to_add) + n), ] = NA
+    to_add$group = rep(levels(data$group), each=empty_bar*nObsType )
+    data = rbind(data, to_add)
+    data = data %>% arrange(group, individual)
+    # data$id = rep( seq(1, nrow(data)/nObsType) , each=nObsType)
+    mapping = setNames(1:length(unique(paste0(data$individual, data$group))), 
+        unique(paste0(data$individual, data$group)))
+    data$id = mapping[paste0(data$individual, data$group)]
+
+    # Get the name and the y position of each label
+    label_data = data %>% group_by(id, individual) %>% summarize(tot=sum(value))
+    number_of_bar = nrow(label_data)
+    angle = 90 - 360 * (label_data$id-0.5) /number_of_bar     
+    # I substract 0.5 because the letter must have the angle of the center of the bars. Not extreme right(1) or extreme left (0)
+    label_data$hjust = ifelse( angle < -90, 1, 0)
+    label_data$angle = ifelse(angle < -90, angle+180, angle)
+    
+    # prepare a data frame for base lines
+    base_data = data %>% 
+        group_by(group) %>% 
+        summarize(start=min(id), end=max(id) - empty_bar) %>% 
+        rowwise() %>% 
+        mutate(title=mean(c(start, end)))
+    
+    # prepare a data frame for grid (scales)
+    grid_data = base_data
+    grid_data$end = grid_data$end[ c( nrow(grid_data), 1:nrow(grid_data)-1)] + 2
+    # grid_data$start = grid_data$start - 1
+    grid_data = grid_data[-1,]
+    
+    # Make the plot
+    data$Condition = data$observation
+    step = (floor(max(na.omit(label_data$tot))/200))*50
+    p = ggplot(data) +      
+        # Add the stacked bar
+        geom_bar(aes(x=as.factor(id), y=value, fill=Condition), stat="identity", alpha=0.5) +
+        scale_fill_viridis(discrete = TRUE, na.translate = FALSE) +
+        # Add a val=100/75/50/25 lines. I do it at the beginning to make sur barplots are OVER it.
+        geom_segment(data=grid_data, 
+            aes(x = end, y = 0, xend = start, yend = 0), 
+            colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
+        geom_segment(data=grid_data, 
+            aes(x = end, y = step, xend = start, yend = step), 
+            colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
+        geom_segment(data=grid_data, 
+            aes(x = end, y = step*2, xend = start, yend = step*2), 
+            colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
+        geom_segment(data=grid_data, 
+            aes(x = end, y = step*3, xend = start, yend = step*3), 
+            colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
+        geom_segment(data=grid_data, 
+            aes(x = end, y = step*4, xend = start, yend = step*4), 
+            colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
+        # Add text showing the value of each 100/75/50/25 lines
+        ggplot2::annotate("text", x = rep(max(data$id),5), 
+            y = c(0, step, step*2, step*3, step*4), 
+            label = as.character(c(0, step, step*2, step*3, step*4)),
+            color="grey", size=6 , angle=0, fontface="bold", hjust=1) +
+        ylim(-150,max(label_data$tot, na.rm=T)) +
+        # coord_cartesian(ylim = c(-150, max(label_data$tot, na.rm = TRUE))) +
+        theme_minimal() +
+        theme(
+            legend.position = "right",
+            axis.text = element_blank(),
+            axis.title = element_blank(),
+            panel.grid = element_blank(),
+            plot.margin = unit(rep(0,4), "cm") 
+        ) +
+        coord_polar() +
+        # Add labels on top of each bar
+        geom_text(data=label_data,
+            aes(x=id, y=tot, label=individual, hjust=hjust), 
+            color="black", fontface="bold", alpha=0.6, size=5, 
+            angle= label_data$angle, inherit.aes = FALSE ) +
+        # Add base line information
+        geom_segment(data=base_data, 
+            aes(x = start, y = -5, xend = end, yend = -5), 
+            colour = "black", alpha=0.8, size=0.6 , inherit.aes = FALSE )  +
+        geom_text(data=base_data, 
+            aes(x = title, y = -18, label=group), 
+            hjust=c(1,1,0,0), colour = "black", 
+            alpha=0.8, size=4, fontface="bold", inherit.aes = FALSE)
+
+    pdf(paste0(outdir,"/", name ,".pdf"), h=h, w=w)
+    print(p)
+    dev.off()
+}
