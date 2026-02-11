@@ -42,7 +42,7 @@
     meta = filter(meta, Sample%in%colnames(dat))
     # Make sure the sample are in the same order in both meta and dat:
     dat = dat[, meta$Sample]
-    meta = meta %>% mutate(across(where(is.factor), droplevels))
+    meta = meta %>% dplyr::mutate(across(where(is.factor), droplevels))
     mapping = setNames(meta$Group, meta$Sample)
     min.nr = round(max((ncol(dat)/2)*0.15, 2), 0)
     print(paste0("Only keep features that have at least ", min.nr, 
@@ -194,7 +194,7 @@ getdb_metabolism = function(databaseDIR) {
     kegg_metab = read.delim(
         paste0(databaseDIR, "/KEGG_metabolism.csv"),
         header = TRUE, stringsAsFactors = FALSE) %>%
-        mutate(class = gsub("Metabolism; ", "", class))
+        dplyr::mutate(class = gsub("Metabolism; ", "", class))
     kegg_metab_db =
         stringr::str_split(kegg_metab[,"gene_symbols",drop=T], ";") %>%
         setNames(., kegg_metab$pathway_name)
@@ -230,7 +230,7 @@ getdb_metabolism = function(databaseDIR) {
  #'
  getCirPackingPlot_GSVA = function(kegg_metab_db_table, outdir) {
     pathway_hierachy =  kegg_metab_db_table %>% mutate(Depth0="Metabolism") %>%
-        mutate(Depth2=gs_name) %>% mutate(Depth1=class) %>%
+        dplyr::mutate(Depth2=gs_name) %>% dplyr::mutate(Depth1=class) %>%
         dplyr::select(Depth0, Depth1, Depth2) %>% unique()
     edges = pathway_hierachy %>% .[,c("Depth0","Depth1")] %>%
         unique()%>%setNames(c("from", "to")) %>%
@@ -242,14 +242,14 @@ getdb_metabolism = function(databaseDIR) {
             as.data.frame()%>%setNames(c("name", "size"))) %>%
         rbind(pathway_hierachy %>% pull(Depth2) %>% unique() %>% table() %>%
             as.data.frame() %>% setNames(c("name","size"))) %>%
-            mutate(shortName = gsub(" and metabolism", "", paste0(name,"(",size,")"))) %>%
-            mutate(shortName = gsub(" metabolism", "", shortName)) %>%
-            mutate(shortName = gsub("Metabolism of ", "", shortName)) %>%
-            mutate(shortName = gsub(" biosynthesis and", "", shortName)) %>%
-            mutate(shortName = gsub(" biosynthesis", "", shortName)) %>%
-            mutate(shortName = gsub(" biodegradation and", "", shortName)) %>%
-            mutate(shortName = gsub("Biosynthesis of ", "", shortName)) %>%
-            mutate(shortName = stringr::str_to_title(shortName))
+            dplyr::mutate(shortName = gsub(" and metabolism", "", paste0(name,"(",size,")"))) %>%
+            dplyr::mutate(shortName = gsub(" metabolism", "", shortName)) %>%
+            dplyr::mutate(shortName = gsub("Metabolism of ", "", shortName)) %>%
+            dplyr::mutate(shortName = gsub(" biosynthesis and", "", shortName)) %>%
+            dplyr::mutate(shortName = gsub(" biosynthesis", "", shortName)) %>%
+            dplyr::mutate(shortName = gsub(" biodegradation and", "", shortName)) %>%
+            dplyr::mutate(shortName = gsub("Biosynthesis of ", "", shortName)) %>%
+            dplyr::mutate(shortName = stringr::str_to_title(shortName))
     vertices$shortName[!vertices$name%in%unique(pathway_hierachy$Depth1)] = NA
     mygraph = igraph::graph_from_data_frame(edges, vertices=vertices)
     p = ggraph::ggraph(mygraph, layout = 'circlepack', weight=size) +
@@ -309,14 +309,14 @@ getdb_metabolism = function(databaseDIR) {
     Cancer_type_order = dat %>% group_by(Cancer_type) %>%
             summarise(Means=mean(means)) %>%
             arrange(Means) %>% pull(Cancer_type) %>% unique()
-    P1 = dat %>% mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
+    P1 = dat %>% dplyr::mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
             ggplot2::ggplot(., ggplot2::aes(x=Cancer_type, y=means)) +
             ggplot2::geom_boxplot(fill="green4") +
             ggplot2::labs(title = title,
                 x="Cancer_type", y="Mean Metab. Act.")+
             ggplot2::theme_minimal() +
             ggplot2::theme(legend.position="none",
-                axis.text.x = element_text(angle = 90, hjust=1, vjust=0))
+                axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
 
     # GSVA scores for healthy control samples only
     dat = lapply(seq_along(GSVA_limma_rslt_gsva), function(j) {
@@ -332,7 +332,7 @@ getdb_metabolism = function(databaseDIR) {
     Cancer_type_order = dat %>% group_by(Cancer_type) %>%
             summarise(Means=mean(means)) %>%
             arrange(Means) %>% pull(Cancer_type) %>% unique()
-    P2 = dat %>% mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
+    P2 = dat %>% dplyr::mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
             ggplot2::ggplot(., ggplot2::aes(x=Cancer_type, y=means)) +
             ggplot2::geom_boxplot(fill="green4") +
             ggplot2::labs(title = title,
@@ -386,14 +386,14 @@ getdb_metabolism = function(databaseDIR) {
                    Psize = as.numeric(pathway_sizes),
                    Class = pathway_class_mapping[names(pathway_sizes)])
     }) %>% Reduce(rbind, .) %>%
-        mutate(Class = gsub(" and metabolism", "", Class)) %>%
-        mutate(Class = gsub(" metabolism", "", Class)) %>%
-        mutate(Class = gsub("Metabolism of ", "", Class)) %>%
-        mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
-        mutate(Class = gsub(" biosynthesis", "", Class)) %>%
-        mutate(Class = gsub(" biodegradation and", "", Class)) %>%
-        mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
-        mutate(Class = stringr::str_to_title(Class)) %>%
+        dplyr::mutate(Class = gsub(" and metabolism", "", Class)) %>%
+        dplyr::mutate(Class = gsub(" metabolism", "", Class)) %>%
+        dplyr::mutate(Class = gsub("Metabolism of ", "", Class)) %>%
+        dplyr::mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
+        dplyr::mutate(Class = gsub(" biosynthesis", "", Class)) %>%
+        dplyr::mutate(Class = gsub(" biodegradation and", "", Class)) %>%
+        dplyr::mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
+        dplyr::mutate(Class = stringr::str_to_title(Class)) %>%
         ggplot2::ggplot(., ggplot2::aes(x=Class, y=Psize)) +
         ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(# title = "TCGA",
@@ -452,18 +452,18 @@ getdb_metabolism = function(databaseDIR) {
         data.frame(Pathway = names(pathway_means),
             Means = as.numeric(pathway_means),
             Class = kegg_metab_db_mapping[names(pathway_means)]) %>%
-            mutate(Class = gsub(" and metabolism", "", Class)) %>%
-            mutate(Class = gsub(" metabolism", "", Class)) %>%
-            mutate(Class = gsub("Metabolism of ", "", Class)) %>%
-            mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
-            mutate(Class = gsub(" biosynthesis", "", Class)) %>%
-            mutate(Class = gsub(" biodegradation and", "", Class)) %>%
-            mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
-            mutate(Class = stringr::str_to_title(Class))
+            dplyr::mutate(Class = gsub(" and metabolism", "", Class)) %>%
+            dplyr::mutate(Class = gsub(" metabolism", "", Class)) %>%
+            dplyr::mutate(Class = gsub("Metabolism of ", "", Class)) %>%
+            dplyr::mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
+            dplyr::mutate(Class = gsub(" biosynthesis", "", Class)) %>%
+            dplyr::mutate(Class = gsub(" biodegradation and", "", Class)) %>%
+            dplyr::mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
+            dplyr::mutate(Class = stringr::str_to_title(Class))
         }) %>% Reduce(rbind, .)
         Class_order = dat %>% group_by(Class) %>%
             summarise(Means=mean(Means)) %>% arrange(Means) %>% pull(Class) %>% unique()
-    P1 = dat %>% mutate(Class = factor(Class, levels=Class_order)) %>%
+    P1 = dat %>% dplyr::mutate(Class = factor(Class, levels=Class_order)) %>%
             ggplot2::ggplot(., ggplot2::aes(x=Class, y=Means)) +
             ggplot2::geom_boxplot(fill="green4") +
             ggplot2::labs(# title = "TCGA",
@@ -487,18 +487,18 @@ getdb_metabolism = function(databaseDIR) {
         data.frame(Pathway = names(pathway_means),
             Means = as.numeric(pathway_means),
             Class = kegg_metab_db_mapping[names(pathway_means)]) %>%
-            mutate(Class = gsub(" and metabolism", "", Class)) %>%
-            mutate(Class = gsub(" metabolism", "", Class)) %>%
-            mutate(Class = gsub("Metabolism of ", "", Class)) %>%
-            mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
-            mutate(Class = gsub(" biosynthesis", "", Class)) %>%
-            mutate(Class = gsub(" biodegradation and", "", Class)) %>%
-            mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
-            mutate(Class = stringr::str_to_title(Class))
+            dplyr::mutate(Class = gsub(" and metabolism", "", Class)) %>%
+            dplyr::mutate(Class = gsub(" metabolism", "", Class)) %>%
+            dplyr::mutate(Class = gsub("Metabolism of ", "", Class)) %>%
+            dplyr::mutate(Class= gsub(" biosynthesis and", "", Class)) %>%
+            dplyr::mutate(Class = gsub(" biosynthesis", "", Class)) %>%
+            dplyr::mutate(Class = gsub(" biodegradation and", "", Class)) %>%
+            dplyr::mutate(Class = gsub("Biosynthesis of ", "", Class)) %>%
+            dplyr::mutate(Class = stringr::str_to_title(Class))
     }) %>% Reduce(rbind, .)
     Class_order = dat %>% group_by(Class) %>%
         summarise(Means=mean(Means)) %>% arrange(Means) %>% pull(Class) %>% unique()
-    P2 = dat %>% mutate(Class = factor(Class, levels=Class_order)) %>%
+    P2 = dat %>% dplyr::mutate(Class = factor(Class, levels=Class_order)) %>%
             ggplot2::ggplot(., ggplot2::aes(x=Class, y=Means)) +
             ggplot2::geom_boxplot(fill="green4") +
             ggplot2::labs(# title = "TCGA",
@@ -546,7 +546,7 @@ getdb_metabolism = function(databaseDIR) {
                 tibble::rownames_to_column(var="Regulation") %>%
                 tidyr::gather(key="Cancer_type", value="Count", -Regulation) %>%
                 arrange(-Count) %>%
-                mutate(Cancer_type=factor(Cancer_type,levels=unique(Cancer_type)))
+                dplyr::mutate(Cancer_type=factor(Cancer_type,levels=unique(Cancer_type)))
         print(ggplot2::ggplot(sig_nr, ggplot2::aes(x=Cancer_type, y=Count, fill=Regulation)) +
             ggplot2::geom_col() +
             ggplot2::scale_fill_manual(values=c("up"="firebrick","down"="steelblue")) +
@@ -632,18 +632,18 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
         rlst[rlst[[sig_statistic]]<sig.cutoff, ]
     }) %>% Reduce(rbind, .) %>%
         dplyr::left_join(taskHierarchy) %>%
-            mutate(logFC=round(logFC, 2)) %>%
-            mutate(Class = gsub("Carbohydrate metabolism","CAR",class)) %>%
-            mutate(Class = gsub("Lipid metabolism", "LIP", Class)) %>%
-            mutate(Class = gsub("Metabolism of cofactors and vitamins", "COF", Class)) %>%
-            mutate(Class = gsub("Energy metabolism", "ENE", Class)) %>%
-            mutate(Class = gsub("Amino acid metabolism", "AMI", Class)) %>%
-            mutate(Class = gsub("Nucleotide metabolism", "NUC", Class)) %>%
-            mutate(Class = gsub("Biosynthesis of other secondary metabolites", "OSM", Class)) %>%
-            mutate(Class = gsub("Metabolism of other amino acids", "OAA", Class)) %>%
-            mutate(Class = gsub("Glycan biosynthesis and metabolism", "GLY", Class)) %>%
-            mutate(Class = gsub("Metabolism of terpenoids and polyketides", "TER", Class)) %>%
-            mutate(Class = gsub("Xenobiotics biodegradation and metabolism" , "XEN", Class))
+            dplyr::mutate(logFC=round(logFC, 2)) %>%
+            dplyr::mutate(Class = gsub("Carbohydrate metabolism","CAR",class)) %>%
+            dplyr::mutate(Class = gsub("Lipid metabolism", "LIP", Class)) %>%
+            dplyr::mutate(Class = gsub("Metabolism of cofactors and vitamins", "COF", Class)) %>%
+            dplyr::mutate(Class = gsub("Energy metabolism", "ENE", Class)) %>%
+            dplyr::mutate(Class = gsub("Amino acid metabolism", "AMI", Class)) %>%
+            dplyr::mutate(Class = gsub("Nucleotide metabolism", "NUC", Class)) %>%
+            dplyr::mutate(Class = gsub("Biosynthesis of other secondary metabolites", "OSM", Class)) %>%
+            dplyr::mutate(Class = gsub("Metabolism of other amino acids", "OAA", Class)) %>%
+            dplyr::mutate(Class = gsub("Glycan biosynthesis and metabolism", "GLY", Class)) %>%
+            dplyr::mutate(Class = gsub("Metabolism of terpenoids and polyketides", "TER", Class)) %>%
+            dplyr::mutate(Class = gsub("Xenobiotics biodegradation and metabolism" , "XEN", Class))
 
     if (top) {
         temp = rlst_long %>% dplyr::select(Task, Cancer, Regulation) %>% 
@@ -756,13 +756,13 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
     }
     B_Z_N0 = B_Z_N0 %>%
         dplyr::left_join(taskHierarchy %>% unique()) %>%
-        mutate(class = gsub(" metabolism", "", class)) %>%
-        mutate(class = gsub("Metabolism of ", "", class)) %>%
-        mutate(class= gsub(" biosynthesis and", "", class)) %>%
-        mutate(class = gsub(" biosynthesis", "", class)) %>%
-        mutate(class = gsub(" biodegradation and", "", class)) %>%
-        mutate(class = gsub("Biosynthesis of ", "", class)) %>%
-        mutate(class = stringr::str_to_title(class))
+        dplyr::mutate(class = gsub(" metabolism", "", class)) %>%
+        dplyr::mutate(class = gsub("Metabolism of ", "", class)) %>%
+        dplyr::mutate(class= gsub(" biosynthesis and", "", class)) %>%
+        dplyr::mutate(class = gsub(" biosynthesis", "", class)) %>%
+        dplyr::mutate(class = gsub(" biodegradation and", "", class)) %>%
+        dplyr::mutate(class = gsub("Biosynthesis of ", "", class)) %>%
+        dplyr::mutate(class = stringr::str_to_title(class))
     B_Z_N0$effect = B_Z_N0[[effect.statistic]]
     if (weight.effect.by.gene) {
         # B_Z_N0$AveExpr_scaled = 
@@ -991,14 +991,14 @@ diffEffectBoxplot_byCancer_GSVA = function(
         taskInfo, by = "Depth3")
     rm(taskInfo)
     gc()
-    P = geneCounts %>% mutate(System = gsub("METABOLISM","M.", Depth1)) %>%
-            ggplot(., aes(x=System, y=geneCount)) +
-            geom_boxplot(fill="green4") +
-            labs(# title = "TCGA",
+    P = geneCounts %>% dplyr::mutate(System = gsub("METABOLISM","M.", Depth1)) %>%
+            ggplot2::ggplot(., ggplot2::aes(x=System, y=geneCount)) +
+            ggplot2::geom_boxplot(fill="green4") +
+            ggplot2::labs(# title = "TCGA",
                 x="", y="Task size")+
-            theme_minimal() +
-            theme(legend.position="none",
-                axis.text.x = element_text(angle = 90, hjust=1, vjust=0))
+            ggplot2::theme_minimal() +
+            ggplot2::theme(legend.position="none",
+                axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
     pdf(paste0(OUTDIR, "/Task_size_system.pdf"), w=2.5, h=3.5)
         print(P)
     dev.off()
@@ -1026,11 +1026,11 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #'   \code{out_dir}.
  #'
  getCirPackingPlot_CellFie = function(cfs, out_dir) {
-    edges = cfs%>%mutate(Depth0="Metabolism")%>%.[,c("Depth0","Depth1")]%>%
+    edges = cfs%>%dplyr::mutate(Depth0="Metabolism")%>%.[,c("Depth0","Depth1")]%>%
         unique()%>%setNames(c("from", "to")) %>%
         rbind(cfs[, c("Depth1","Depth2")]%>%unique()%>%setNames(c("from", "to"))) %>%
         rbind(cfs[, c("Depth2","Depth3")]%>%unique()%>%setNames(c("from","to")))
-    vertices = cfs%>%mutate(Depth0="Metabolism")%>%.[,c("Depth0","Depth3")]%>%unique()%>%
+    vertices = cfs%>%dplyr::mutate(Depth0="Metabolism")%>%.[,c("Depth0","Depth3")]%>%unique()%>%
         pull(Depth0)%>%table()%>%as.data.frame()%>%setNames(c("name", "size")) %>%
         rbind(cfs[,c("Depth1","Depth3")]%>%unique()%>%pull(Depth1)%>%table()%>%
         as.data.frame()%>%setNames(c("name", "size"))) %>%
@@ -1038,8 +1038,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
         as.data.frame()%>%setNames(c("name", "size"))) %>%
         rbind(cfs%>%pull(Depth3)%>%unique()%>%table()%>%as.data.frame()%>%
         setNames(c("name","size"))) %>%
-        mutate(size = size) %>%
-        mutate(shortName=gsub("METABOLISM","M.",paste0(name,"(",size,")")))
+        dplyr::mutate(size = size) %>%
+        dplyr::mutate(shortName=gsub("METABOLISM","M.",paste0(name,"(",size,")")))
     vertices$shortName[!vertices$name%in%unique(cfs$Depth1)] = NA
     mygraph = igraph::graph_from_data_frame(edges, vertices=vertices)       
     p1 = ggraph::ggraph(mygraph, layout = 'circlepack', weight=size) +
@@ -1146,7 +1146,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
             colnames(temp) = gsub("_.*", "", colnames(temp))
             temp
         }) %>% Reduce(rbind, .) %>% 
-            mutate(Depth3.ID = TaskID) %>%
+            dplyr::mutate(Depth3.ID = TaskID) %>%
             dplyr::select(Depth3.ID, everything()) %>% 
             filter(TaskScore!=-1) # remove unscorable rows (-1)
         cf2
@@ -1174,7 +1174,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
         cf = cfs[[c]]
         cf4 = dplyr::right_join(SampleInfo, cf) %>%
             dplyr::right_join(meta[,c("Sample", "Cancer_Condition", "Condition", "Cancer_type")], .) %>%
-            # mutate(Group=gsub("_.*_", "_", Sample)) %>% ##########
+            # dplyr::mutate(Group=gsub("_.*_", "_", Sample)) %>% ##########
             dplyr::select(Condition, everything()) 
         write.table(cf4, paste0(outdir, "/",c,"/detailScoring_new.csv"), sep="\t", 
             quote=F, row.names=F)
@@ -1194,7 +1194,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
     h = ((cfs[[Depth]] %>% unique() %>% length())/15) * 3.5 + 3
     Depth1 = sumUpTaskScores(cfs, Depth=Depth, h=h, w=w,
             OUTDIR=paste0(outdir, "/../Summary/")) %>% 
-            mutate(TaskScore=MeanTaskScore)
+            dplyr::mutate(TaskScore=MeanTaskScore)
     saveRDS(Depth1, paste0(outdir, "/../Summary/TaskScores_", Depth,".RDS"))
     ## Task depth2
     Depth = "Depth2"
@@ -1202,7 +1202,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
     h = ((cfs[[Depth]] %>% unique() %>% length())/15) * 3.5 + 2
     Depth2 = sumUpTaskScores(cfs, Depth=Depth, h=h, w=w,
             OUTDIR=paste0(outdir, "/../Summary/"))%>%
-            mutate(TaskScore=MeanTaskScore)
+            dplyr::mutate(TaskScore=MeanTaskScore)
     saveRDS(Depth2, paste0(outdir, "/../Summary/TaskScores_", Depth,".RDS"))
     ## Task depth3
     Depth = "Depth3"
@@ -1245,7 +1245,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
     # Boxplot of task score means at depth1
     w = ((cfs$Cancer_Condition %>% unique() %>% length())/3.1*5) * 0.4
     pdf(paste0(outdir,"/../Summary/Boxplots_TaskScoreMeans_depth1.pdf"), w=w, h=8)
-        print(ggplot2::ggplot(Depth1, aes(x=Cancer_Condition, y=MeanTaskScore, fill=Cancer_type)) +
+        print(ggplot2::ggplot(Depth1, ggplot2::aes(x=Cancer_Condition, y=MeanTaskScore, fill=Cancer_type)) +
         ggplot2::geom_boxplot(position=position_dodge()) +
         ggplot2::facet_wrap(~Depth1, ncol=4, scales="free") +
         ggplot2::theme_bw() +
@@ -1311,7 +1311,7 @@ limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL,
     meta = filter(meta, Sample%in%colnames(dat))
     # Make sure the sample are in the same order in both meta and dat:
     dat = dat[, meta$Sample]
-    meta = meta %>% mutate(across(where(is.factor), droplevels))
+    meta = meta %>% dplyr::mutate(across(where(is.factor), droplevels))
     # print("When running differential analysis, we only keep features that have at least 2 values in each group...")
     featureskeep = apply(!is.na(dat), 1, function(row) {
         A=row
@@ -1407,7 +1407,7 @@ limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL,
 runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
     dir.create(OUTDIRV, recursive = TRUE, showWarnings = FALSE)
     rownames(cfs) = NULL
-    cfs = cfs %>% mutate(TaskScore=log2(TaskScore+0.001))
+    cfs = cfs %>% dplyr::mutate(TaskScore=log2(TaskScore+0.001))
     cf5_Depth = cfs[, c(depth, "Sample", "TaskScore")] %>% 
         tidyr::spread(key="Sample", value="TaskScore") %>% 
         as.data.frame() %>%
@@ -1453,29 +1453,29 @@ runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
             rownames(colAnn) = colnames(sub)
             L = ncol(sub)
             pheatmap::pheatmap(sub,
-                            show_colnames=TRUE,
-                            color=viridisLite::magma(50),
-                            breaks=seq(-2,2,len=50),
-                            border_color="black",
-                            scale="row",
-                            annotation_col=colAnn,
-                            main="Task Scores",
-                            cluster_cols = FALSE,
-                            cluster_rows = FALSE,
-                            filename=paste0(OUTDIRV,"/TaskScore_heatmap_",ct,"_wSampleNames.pdf"), 
-                            width=w+0.14*L, height=height)
+                    show_colnames=TRUE,
+                    color=viridisLite::magma(50),
+                    breaks=seq(-2,2,len=50),
+                    border_color="black",
+                    scale="row",
+                    annotation_col=colAnn,
+                    main="Task Scores",
+                    cluster_cols = FALSE,
+                    cluster_rows = FALSE,
+                    filename=paste0(OUTDIRV,"/TaskScore_heatmap_",ct,"_wSampleNames.pdf"), 
+                    width=w+0.14*L, height=height)
             pheatmap::pheatmap(sub,
-                            labels_col=rep("", ncol(sub)),
-                            color=viridisLite::magma(50),
-                            breaks=seq(-2,2,len=50),
-                            border_color="black",
-                            scale="row",
-                            annotation_col=colAnn,
-                            main="Task Scores",
-                            cluster_cols = FALSE,
-                            cluster_rows = FALSE,
-                            filename=paste0(OUTDIRV,"/TaskScore_heatmap_",ct,".pdf"), 
-                            width=w+0.14*L, height=height)
+                    labels_col=rep("", ncol(sub)),
+                    color=viridisLite::magma(50),
+                    breaks=seq(-2,2,len=50),
+                    border_color="black",
+                    scale="row",
+                    annotation_col=colAnn,
+                    main="Task Scores",
+                    cluster_cols = FALSE,
+                    cluster_rows = FALSE,
+                    filename=paste0(OUTDIRV,"/TaskScore_heatmap_",ct,".pdf"), 
+                    width=w+0.14*L, height=height)
         } else {rlst = NA}
         rlst
     }) %>% setNames(setdiff(Type,nonPaired))
@@ -1646,9 +1646,9 @@ makeLimmaDotplot_CellFie = function(rlst_list,
         rlst %>% tibble::rownames_to_column(var="Task") 
     }) %>% Reduce(rbind, .) %>%
         dplyr::left_join(unique(taskHierarchy[, c("Depth1", "Depth2", "Depth3", "Task")])) %>%
-            mutate(logFC=round(logFC, 2)) %>%
-            mutate(Depth2 = stringr::str_sub(Depth2, 1, 3)) %>%
-            mutate(Depth1 = stringr::str_sub(Depth1, 1, 3)) %>% 
+            dplyr::mutate(logFC=round(logFC, 2)) %>%
+            dplyr::mutate(Depth2 = stringr::str_sub(Depth2, 1, 3)) %>%
+            dplyr::mutate(Depth1 = stringr::str_sub(Depth1, 1, 3)) %>% 
             filter(Task %in% c(ups, downs)) %>%
             filter(adj.P.Val < adj.P.Val.cutoff)
 
@@ -1741,32 +1741,32 @@ makeLimmaDotplot_CellFie = function(rlst_list,
 
 doVolcano_CellFie = function(resi, NAME, 
     adj.P.Val.cutoff=0.05, logFC.cutoff=0, lfcShrink=F) {
-  selectedCols = c("Task", "logFC", "P.Value", "adj.P.Val", "Depth")
-  toExport = resi[, selectedCols]
-  toExport = toExport[order(toExport$P.Value),]
+    selectedCols = c("Task", "logFC", "P.Value", "adj.P.Val", "Depth")
+    toExport = resi[, selectedCols]
+    toExport = toExport[order(toExport$P.Value),]
 
-  tmp = as.data.frame(toExport) %>%
-    filter(!is.na(adj.P.Val)) %>%
-    mutate(sig = ifelse(adj.P.Val<adj.P.Val.cutoff&logFC>logFC.cutoff, "up", 
-    ifelse(adj.P.Val<adj.P.Val.cutoff&(logFC< -logFC.cutoff), "down", "nonSig")))
-  tmp$PointSize = ifelse(tmp$Depth == "Depth3", 1,
-                    ifelse(tmp$Depth == "Depth2", 2, 3))
-  tmpSignif = tmp %>%
-    filter(tmp$logFC>quantile(abs(tmp$logFC),0.98)|(tmp$logFC< -quantile(abs(tmp$logFC),0.98))) %>%
-    filter(sig!="nonSig")
-  
-  p = ggplot2::ggplot(data = tmp, ggplot2::aes(x=logFC, y=-log10(adj.P.Val), col=sig)) + 
-    ggplot2::geom_point(alpha = 0.5, ggplot2::aes(size=PointSize)) + 
-    ggplot2::xlab("Log2 Fold Change") +
-    ggrepel::geom_text_repel(data = tmpSignif, 
-      ggplot2::aes(x=logFC, y=-log10(adj.P.Val), label = Task), 
-      color="cornsilk4") +
-    ggplot2::geom_hline(yintercept = -log10(0.05), lty = 2) +
-    ggplot2::geom_vline(xintercept = c(-0, 0), lty = 2) + 
-    ggplot2::scale_colour_manual(values = c("down"="blue", "nonSig"="black", "up"="red")) + 
-    ggplot2::theme(legend.position="none") +
-    ggplot2::ggtitle(ifelse(lfcShrink, paste0(NAME, "_lfcShrink"), paste0(NAME, "")))
-  return(p)
+    tmp = as.data.frame(toExport) %>%
+        filter(!is.na(adj.P.Val)) %>%
+        dplyr::mutate(sig = ifelse(adj.P.Val<adj.P.Val.cutoff&logFC>logFC.cutoff, "up", 
+        ifelse(adj.P.Val<adj.P.Val.cutoff&(logFC< -logFC.cutoff), "down", "nonSig")))
+    tmp$PointSize = ifelse(tmp$Depth == "Depth3", 1,
+                        ifelse(tmp$Depth == "Depth2", 2, 3))
+    tmpSignif = tmp %>%
+        filter(tmp$logFC>quantile(abs(tmp$logFC),0.98)|(tmp$logFC< -quantile(abs(tmp$logFC),0.98))) %>%
+        filter(sig!="nonSig")
+    
+    p = ggplot2::ggplot(data = tmp, ggplot2::aes(x=logFC, y=-log10(adj.P.Val), col=sig)) + 
+        ggplot2::geom_point(alpha = 0.5, ggplot2::aes(size=PointSize)) + 
+        ggplot2::xlab("Log2 Fold Change") +
+        ggrepel::geom_text_repel(data = tmpSignif, 
+            ggplot2::aes(x=logFC, y=-log10(adj.P.Val), label = Task), 
+        color="cornsilk4") +
+        ggplot2::geom_hline(yintercept = -log10(0.05), lty = 2) +
+        ggplot2::geom_vline(xintercept = c(-0, 0), lty = 2) + 
+        ggplot2::scale_colour_manual(values = c("down"="blue", "nonSig"="black", "up"="red")) + 
+        ggplot2::theme(legend.position="none") +
+        ggplot2::ggtitle(ifelse(lfcShrink, paste0(NAME, "_lfcShrink"), paste0(NAME, "")))
+    return(p)
 }
 
 #' Generate a circular barplot to summarize the sample size per cancer.
@@ -1779,7 +1779,7 @@ doVolcano_CellFie = function(resi, NAME,
 SampleSizeCircularBarplot = function(meta, title="Pan-cancer tasks", OUT_DIR, h=4, w=4.5) {
     temp = meta %>% dplyr::count(Cancer_type, Condition) %>%
         tidyr::spread(Condition, n) %>%
-        dplyr::mutate(Sum = ifelse(is.na(Normal), 0, Normal)+ifelse(is.na(Tumor), 0, Tumor)) %>% 
+        dplyr::mutate(Sum = ifelse(is.na(Normal), 0, Normal) + ifelse(is.na(Tumor), 0, Tumor)) %>% 
         dplyr::mutate(Cancer_type = paste0(Cancer_type, "\n(",Sum,")")) %>%
         dplyr::select(-Sum) %>%
         tidyr::gather(key="Condition", value="Count", -Cancer_type) 
@@ -1957,9 +1957,9 @@ SigNrBarplot = function(rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
     B3_H = data.frame(Cancer_type = names(temp), 
             Regulation = names(temp),
             Count=as.numeric(temp)) %>%
-        mutate(Cancer_type=gsub("_.*","",Cancer_type)) %>%
-        mutate(Regulation=gsub(".*_","",Regulation)) %>%
-        mutate(Count = ifelse(Regulation=="up",Count,-Count)) %>% arrange(.,Count)
+        dplyr::mutate(Cancer_type=gsub("_.*","",Cancer_type)) %>%
+        dplyr::mutate(Regulation=gsub(".*_","",Regulation)) %>%
+        dplyr::mutate(Count = ifelse(Regulation=="up",Count,-Count)) %>% arrange(.,Count)
     B3_H$Cancer_type = factor(B3_H$Cancer_type, levels=unique(rev(B3_H$Cancer_type)))
 
     B3_H = ggplot2::ggplot(B3_H, ggplot2::aes(x=Cancer_type, y=Count, fill=Regulation)) +
@@ -2076,7 +2076,7 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf,
             ggplot2::ggplot(., ggplot2::aes(x=System, y=effect_weighted, fill=Source)) +
             ggplot2::geom_violin(position = position_dodge(width = 0.85),  # reduce spacing
                 width = 2, trim=FALSE, alpha=0.75, col=NA)+
-            scale_fill_manual(values = 
+            ggplot2::scale_fill_manual(values = 
                 c("#E69F00", "#56B4E9","#999999","#F0E442","#009E73","#0072B2","#D55E00","#CC79A7"))
     } else {
         B_Z_N = B_Z_N %>%  
@@ -2195,7 +2195,7 @@ getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
         group_by(group) %>% 
         summarize(start=min(id), end=max(id) - empty_bar) %>% 
         rowwise() %>% 
-        mutate(title=mean(c(start, end)))
+        dplyr::mutate(title=mean(c(start, end)))
     
     # prepare a data frame for grid (scales)
     grid_data = base_data
@@ -2206,24 +2206,24 @@ getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
     # Make the plot
     data$Condition = data$observation
     step = (floor(max(na.omit(label_data$tot))/200))*50
-    p = ggplot(data) +      
+    p = ggplot2::ggplot(data) +      
         # Add the stacked bar
-        geom_bar(aes(x=as.factor(id), y=value, fill=Condition), stat="identity", alpha=0.5) +
-        scale_fill_viridis(discrete = TRUE, na.translate = FALSE) +
+        ggplot2::geom_bar(ggplot2::aes(x=as.factor(id), y=value, fill=Condition), stat="identity", alpha=0.5) +
+        viridis::scale_fill_viridis(discrete = TRUE, na.translate = FALSE) +
         # Add a val=100/75/50/25 lines. I do it at the beginning to make sur barplots are OVER it.
-        geom_segment(data=grid_data, 
+        ggplot2::geom_segment(data=grid_data, 
             aes(x = end, y = 0, xend = start, yend = 0), 
             colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
-        geom_segment(data=grid_data, 
+        ggplot2::geom_segment(data=grid_data, 
             aes(x = end, y = step, xend = start, yend = step), 
             colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
-        geom_segment(data=grid_data, 
+        ggplot2::geom_segment(data=grid_data, 
             aes(x = end, y = step*2, xend = start, yend = step*2), 
             colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
-        geom_segment(data=grid_data, 
+        ggplot2::geom_segment(data=grid_data, 
             aes(x = end, y = step*3, xend = start, yend = step*3), 
             colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
-        geom_segment(data=grid_data, 
+        ggplot2::geom_segment(data=grid_data, 
             aes(x = end, y = step*4, xend = start, yend = step*4), 
             colour = "grey", alpha=1, linewidth=0.3 , inherit.aes = FALSE ) +
         # Add text showing the value of each 100/75/50/25 lines
@@ -2231,28 +2231,28 @@ getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
             y = c(0, step, step*2, step*3, step*4), 
             label = as.character(c(0, step, step*2, step*3, step*4)),
             color="grey", size=6 , angle=0, fontface="bold", hjust=1) +
-        ylim(-150,max(label_data$tot, na.rm=T)) +
+        ggplot2::ylim(-150,max(label_data$tot, na.rm=T)) +
         # coord_cartesian(ylim = c(-150, max(label_data$tot, na.rm = TRUE))) +
-        theme_minimal() +
-        theme(
+        ggplot2::theme_minimal() +
+        ggplot2::theme(
             legend.position = "right",
-            axis.text = element_blank(),
-            axis.title = element_blank(),
-            panel.grid = element_blank(),
-            plot.margin = unit(rep(0,4), "cm") 
+            axis.text = ggplot2::element_blank(),
+            axis.title = ggplot2::element_blank(),
+            panel.grid = ggplot2::element_blank(),
+            plot.margin = ggplot2::unit(rep(0,4), "cm") 
         ) +
-        coord_polar() +
+        ggplot2::coord_polar() +
         # Add labels on top of each bar
-        geom_text(data=label_data,
-            aes(x=id, y=tot, label=individual, hjust=hjust), 
+        ggplot2::geom_text(data=label_data,
+            ggplot2::aes(x=id, y=tot, label=individual, hjust=hjust), 
             color="black", fontface="bold", alpha=0.6, size=5, 
             angle= label_data$angle, inherit.aes = FALSE ) +
         # Add base line information
-        geom_segment(data=base_data, 
-            aes(x = start, y = -5, xend = end, yend = -5), 
+        ggplot2::geom_segment(data=base_data, 
+            ggplot2::aes(x = start, y = -5, xend = end, yend = -5), 
             colour = "black", alpha=0.8, size=0.6 , inherit.aes = FALSE )  +
-        geom_text(data=base_data, 
-            aes(x = title, y = -18, label=group), 
+        ggplot2::geom_text(data=base_data, 
+            ggplot2::aes(x = title, y = -18, label=group), 
             hjust=c(1,1,0,0), colour = "black", 
             alpha=0.8, size=4, fontface="bold", inherit.aes = FALSE)
 
@@ -2320,7 +2320,7 @@ visualizeDiffFeatures = function(
     ann_row = taskInfo %>% dplyr::select(Depth, GeneAssociatedToEssentialRxnsTask_symbol) %>%
         na.omit() %>% unique() %>% 
         filter(GeneAssociatedToEssentialRxnsTask_symbol %in% as.character(rownames(logFCdat))) %>%
-        mutate(value = 1) %>%  # mark presence with 1
+        dplyr::mutate(value = 1) %>%  # mark presence with 1
         tidyr::pivot_wider(names_from = Depth, 
             values_from = value,
             values_fill = list(value = 0)) %>%
@@ -2375,9 +2375,9 @@ systemDiffAnalysis = function(
     gc()
 
     # Zhou2020
-    OUTDIR = "../results/CellFie_Zhou2020/"
+    OUTDIR = "../results/CellFie_Zhou2020/" #############
     taskInfo2 = 
-        read.csv(paste0(OUTDIR, "/CellFieOut/all/detailScoring_new.csv"), sep="\t", header=TRUE)
+        read.csv(paste0(OUTDIR, "/CellFieOut/all/detailScoring_new.csv"), sep="\t", header=TRUE) ############
     head(taskInfo2)
     systemZhou = getSystem(taskInfo2, System=System)
     systemZhou = systemZhou %>% unique()
@@ -2389,9 +2389,9 @@ systemDiffAnalysis = function(
 
     print("Paired differential analysis ... ")
     OUTDIR = "../results/CellFie_Hu2025/"
-    NdatHu = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))
-    systemHu = readRDS(paste0(outDirHu, "/systemTaskInfoHu.RDS"))
-    metaHu = readRDS(paste0(OUTDIR, "/data/Hu2025/Meta_hu2025.RDS"))
+    NdatHu = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))   #############
+    systemHu = readRDS(paste0(outDirHu, "/systemTaskInfoHu.RDS")) ##############
+    metaHu = readRDS(paste0(OUTDIR, "/data/Hu2025/Meta_hu2025.RDS")) ##############
     saveRDS(metaHu, paste0(outDirHu, "/metaHu.RDS"))
 
     NdatHu = NdatHu[!duplicated(NdatHu$genes),]
@@ -2424,17 +2424,17 @@ systemDiffAnalysis = function(
     limma_rslt_listHu = lapply(limma_rslt_listHu, function(x) {
             x$rslt_of_interest %>% 
             tibble::rownames_to_column(var="EntrezID")%>%
-            mutate(Feature=as.character(mappingHu[EntrezID])) %>%
+            dplyr::mutate(Feature=as.character(mappingHu[EntrezID])) %>%
             dplyr::select(Feature, everything())})
     saveRDS(limma_rslt_listHu, paste0(outDirHu, "limma_rslt_listHu.RDS"))
     openxlsx::write.xlsx(
         limma_rslt_listHu, 
         file = paste0(outDirHu, "limma_reslut.xlsx"))
 
-    OUTDIR = "../results/CellFie_Zhou2020/"
-    NdatZhou = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))
-    systemZhou = readRDS(paste0(outDirZhou, "/systemTaskInfoZhou.RDS"))
-    metaZhou = readRDS(paste0(OUTDIR,"/data/Zhou2020/meta.RDS"))
+    OUTDIR = "../results/CellFie_Zhou2020/"  #############
+    NdatZhou = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))  #############
+    systemZhou = readRDS(paste0(outDirZhou, "/systemTaskInfoZhou.RDS"))  #############
+    metaZhou = readRDS(paste0(OUTDIR,"/data/Zhou2020/meta.RDS"))   #############
     saveRDS(metaZhou, paste0(outDirZhou, "/metaZhou.RDS"))
 
     sum(metaZhou$Sample %in% colnames(NdatZhou))
@@ -2472,7 +2472,7 @@ systemDiffAnalysis = function(
     limma_rslt_listZhou = lapply(limma_rslt_listZhou,function(x) {
             x$rslt_of_interest %>% 
             tibble::rownames_to_column(var="EntrezID")%>%
-            mutate(Feature=as.character(mappingZhou[EntrezID])) %>%
+            dplyr::mutate(Feature=as.character(mappingZhou[EntrezID])) %>%
             dplyr::select(Feature, everything())})
     saveRDS(limma_rslt_listZhou, paste0(outDirZhou, "limma_rslt_listZhou.RDS"))
     openxlsx::write.xlsx(
@@ -2503,7 +2503,7 @@ makeEffectSizeBoxplot_system = function(
             c$logFC = c[[effect.statistic]]
             c %>% dplyr::select(Feature, logFC)
         }) %>% Reduce(rbind, .) %>%
-        mutate(System = sname)
+        dplyr::mutate(System = sname)
     }) %>% Reduce(rbind, .)
 
     dat4plot$System = gsub("METABOLISM", "M.", dat4plot$System)
@@ -2548,7 +2548,7 @@ makeEffectSizeBoxplot_cancer = function(
             cdat$logFC = cdat[[effect.statistic]]
             cdat %>% dplyr::select(Feature, logFC)
         }) %>% Reduce(rbind, .) %>%
-        mutate(Cancer = c)
+        dplyr::mutate(Cancer = c)
     }) %>% Reduce(rbind, .)
 
     order = dat4plot %>% group_by(Cancer) %>% 
@@ -2662,7 +2662,7 @@ getSystemNetwork = function(
     hub.nr = max(3, 0.03*length(kWithin))
     hubs = names(sort(kWithin, decreasing = TRUE))[1:hub.nr]
 
-    library(igraph)
+    # library(igraph)
     # Filter the cor matrix to only keep those cor >0.6
     # correlation threshold
     thr = 0.6
@@ -2680,7 +2680,7 @@ getSystemNetwork = function(
     weight = cor_mat[edges]
     )
     # Build a filtered graph
-    g = graph_from_data_frame(edge_df, directed = FALSE)
+    g = igraph::graph_from_data_frame(edge_df, directed = FALSE)
 
     # add node attributes
     V(g)$kWithin = kWithin[V(g)$name] #hubness
@@ -2695,7 +2695,7 @@ getSystemNetwork = function(
     paste0(outdir, "/Network/") %>% dir.create(recursive=T, showWarnings=F)
     h = w = size.index*length(V(g))/10 + 5
     pdf(paste0(outdir, "/Network/Network_hub_", gsub(" ", "", System),suffix,".pdf"), h=h,w=w)
-    library(scales)
+    # library(scales)
     edge.color = ifelse(E(g)$weight > 0, "snow2", "skyblue")
     E(g)$weight = abs(E(g)$weight)
     plot(
@@ -2704,7 +2704,7 @@ getSystemNetwork = function(
         
         vertex.size = vertex.size.index * (V(g)$kWithin - min(V(g)$kWithin)) / (max(V(g)$kWithin) - min(V(g)$kWithin)),  
         # normalize size nicely
-        vertex.color = ifelse(V(g)$isHub, alpha("#D73027",0.6), alpha("orange", 0.6)),  # nicer red and blue shades
+        vertex.color = ifelse(V(g)$isHub, scales::alpha("#D73027",0.6), scales::alpha("orange", 0.6)),  # nicer red and blue shades
         vertex.frame.color = "gold",   # subtle border around nodes
         
         vertex.label = V(g)$name,
@@ -2817,7 +2817,7 @@ metabolicSurvival_coxreg = function(meta, GSVAscores) {
             )
         }
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>%
-    mutate(padj = p.adjust(p_value, method="fdr")))
+    dplyr::mutate(padj = p.adjust(p_value, method="fdr")))
 }
 
 
@@ -2976,7 +2976,7 @@ metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
 
         summary_table
     }) %>% Reduce(rbind, .) %>% as.data.frame() %>%
-        mutate(padj = p.adjust(p_value, method="fdr"))
+        dplyr::mutate(padj = p.adjust(p_value, method="fdr"))
     
     return(rslt)
 }
