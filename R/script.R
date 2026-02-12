@@ -29,6 +29,9 @@
  #' @param kegg_metab_db A list of KEGG metabolic pathways mapping pathway
  #'   names/IDs to vectors of member gene symbols (one of the outputs of
  #'   \code{getdb_metabolism}).
+ #' @param min.count Numeric scalar. Minimum count threshold for feature filtering.
+ #' 
+ #' @importFrom dplyr %>%
  #'
  #' @return A list with components:
  #' \item{rslt_of_interest}{A data frame of limma topTable results for the
@@ -140,9 +143,38 @@
 
 
 
-#' @import dplyr
-#' @param databaseDIR a diretory to save the KEGG metabolic pathway database
+#' @title Get KEGG Metabolic Pathway Database
+#' @description
+#' Retrieves human metabolic pathways from the KEGG database, extracts pathway
+#' information including genes and compounds, and creates a structured database
+#' for metabolic analysis.
 #'
+#' @param databaseDIR Character string specifying the directory path where the
+#'   metabolic database files will be saved (KEGG_metabolism.csv,
+#'   KEGG_metabolism_db.RDS, KEGG_metabolism_db_table.RDS).
+#'
+#' @return A list containing two elements:
+#'   \item{kegg_metab_db}{Named list of gene symbols split by pathway name}
+#'   \item{kegg_metab_db_table}{Tibble with columns: gs_name, gene_symbol, class}
+#'
+#' @details
+#' This function queries the KEGG REST API to obtain human metabolic pathways,
+#' extracts genes and compounds for each pathway, and creates both wide (list)
+#' and long (table) format databases. Results are saved as TSV and RDS files.
+#'
+#' @importFrom KEGGREST keggGet
+#' @importFrom dplyr mutate
+#' @importFrom stringr str_split
+#' @importFrom tibble as_tibble
+#' @importFrom dplyr %>%
+#'
+#' @examples
+#' \dontrun{
+#'   result <- getdb_metabolism("/path/to/database")
+#'   head(result$kegg_metab_db_table)
+#' }
+#'
+#' @export
 getdb_metabolism = function(databaseDIR) {
     # Get all human metabolic pathways
     query = KEGGREST::keggGet(c("hsa01100"))
@@ -224,6 +256,8 @@ getdb_metabolism = function(databaseDIR) {
  #'   (member gene symbol), and \code{class} (pathway class).
  #' @param outdir Character scalar. Directory where the plot PDF will be written.
  #'   The file is saved to \code{file.path(outdir, "KEGG_metabolism", "TaskSummary.pdf")}.
+ #' 
+ #' @importFrom dplyr %>%
  #'
  #' @return Invisibly returns the generated \code{ggplot2} object. The primary
  #'   side-effect is writing the PDF file to \code{outdir} when provided.
@@ -266,9 +300,9 @@ getdb_metabolism = function(databaseDIR) {
 }
 
 
- #' Visualize GSVA pathway means across groups (and normals)
+ #' @title Visualize GSVA pathway means across groups (and normals)
  #'
- #' Generate side-by-side boxplots that summarize GSVA pathway activity means
+ #' @description Generate side-by-side boxplots that summarize GSVA pathway activity means
  #' across provided groups and, separately, for matched normal samples.
  #' This is intended for cohort-level comparisons (for example, across cancer types)
  #' and assumes GSVA has been run with KEGG pathway gene sets.
@@ -283,10 +317,22 @@ getdb_metabolism = function(databaseDIR) {
  #'   and `sample.submitter_id` which are used to select normal samples.
  #' @param OUTDIR Character scalar. Directory where output plots (PDF) will be
  #'   written. If `NULL`, plots may be returned instead of being saved.
- #' @param Condition_column Column for conditions.
- #' @param Condition.control Name of the control group in Condition_column.
- #' @param sample_column Column for samples.
+  #' @param Condition_column Character string indicating the column name in `paired_data`
+ #'   data frames used to classify samples (e.g., "sample_type"). Default: "sample_type".
+ #' @param Condition.control Character string specifying the value in `Condition_column`
+ #'   that identifies control/normal samples (e.g., "Solid Tissue Normal").
+ #'   Default: "Solid Tissue Normal".
+ #' @param sample_column Character string indicating the column name in `paired_data`
+ #'   data frames that contains sample identifiers matching the column names in
+ #'   GSVA matrices (e.g., "sample.submitter_id"). Default: "sample.submitter_id".
+ #' @param w Numeric scalar. Width of the output PDF in inches. Default: 5.5.
+ #' @param h Numeric. Height of the output PDF in inches. Default: 3.0.
+ #' @param title Character string. Title to display on the plots. Default: "TCGA".
  #'
+ #' @importFrom dplyr %>% mutate group_by summarise arrange pull
+ #' @importFrom ggplot2 ggplot aes geom_boxplot labs theme_minimal theme element_text
+ #' @importFrom cowplot plot_grid
+ #' 
  #' @return Invisibly returns a list containing the two ggplot2 objects (all
  #'   samples and normal-only samples) and the path to the saved PDF (if
  #'   `OUTDIR` is provided). A PDF named `GSVA_samples.pdf` is written to
@@ -366,6 +412,8 @@ getdb_metabolism = function(databaseDIR) {
  #'   This table is used to map pathways to their classes for grouping and plotting.
  #' @param OUTDIR Directory where output plots/tables will be written (optional).
  #'
+ #' @importFrom dplyr %>%
+ #' 
  #' @return A pdf file, Pathway_size_class.pdf in the OUTDIR.
  #' @examples
  #' # visualizeGSsizeClass(GSVA_limma_rslt_gsva, genes4GSVA, kegg_metab_db, kegg_metab_db_table, OUTDIR)
@@ -406,12 +454,14 @@ getdb_metabolism = function(databaseDIR) {
     dev.off()
 }
 
- #' Visualize GSVA pathway means by metabolic class
+ #' @title Visualize GSVA Metabolic Activity by Pathway Class
  #'
- #' Produce comparative boxplots of mean GSVA pathway activities grouped by
- #' metabolic class. The function creates two panels: overall cohort means and
- #' means computed using matched normal samples only (when available in
- #' `paired_data`). Outputs are saved to `OUTDIR` when provided.
+ #' @description
+ #' Generates comparative boxplots of mean GSVA pathway activity scores grouped
+ #' by metabolic class across multiple cohorts or groups. The function creates
+ #' two complementary panels: one showing overall cohort means and another
+ #' showing means computed from matched normal samples only. Pathway class names
+ #' are automatically cleaned and standardized for improved readability.
  #'
  #' @param GSVA_limma_rslt A named list of GSVA result objects. Each list
  #'   element should correspond to a group (list names indicate groups, e.g.
@@ -430,6 +480,36 @@ getdb_metabolism = function(databaseDIR) {
  #' @param OUTDIR Character scalar or \code{NULL}. Directory where output
  #'   plots/tables will be written. If \code{NULL}, plots are returned instead
  #'   of being saved.
+ #' @param Condition_column Character string naming the metadata column that
+ #'   contains sample classification (e.g., "sample_type"). Default: "sample_type".
+ #'
+ #' @param Condition.control Character string specifying the value in
+ #'   `Condition_column` that identifies control/normal samples
+ #'   (e.g., "Solid Tissue Normal"). Default: "Solid Tissue Normal".
+ #' @param sample_column Character string naming the metadata column containing
+ #'   sample identifiers that match column names in the GSVA matrices
+ #'   (e.g., "sample.submitter_id"). Default: "sample.submitter_id".
+ #' @param w Numeric. Width of output PDF in inches. Default: 5.5.
+ #' @param h Numeric. Height of output PDF in inches. Default: 3.5.
+ #'
+ #' @details
+ #' The function performs the following operations:
+ #' \enumerate{
+ #'   \item Computes mean GSVA scores per pathway across all samples in each group
+ #'   \item Maps pathways to metabolic classes using `kegg_metab_db_table`
+ #'   \item Cleans class names by removing common KEGG descriptors
+ #'     ("metabolism", "biosynthesis", "biodegradation", etc.)
+ #'   \item Creates two boxplots (all samples vs. control samples only),
+ #'     sorted by median pathway activity
+ #'   \item Combines both plots horizontally using cowplot for PDF output
+ #' }
+ #' Class name standardization helps create more readable axis labels
+ #' across different metabolic categories.
+ #'
+ #' @importFrom dplyr %>% select unique group_by summarise arrange pull mutate
+ #' @importFrom ggplot2 ggplot aes geom_boxplot labs theme_minimal theme element_text
+ #' @importFrom stringr str_to_title
+ #' @importFrom cowplot plot_grid
  #'
  #' @return Invisibly returns a list with the ggplot2 objects for the two
  #'   panels (overall and normals-only) and, when \code{OUTDIR} is provided,
@@ -513,12 +593,14 @@ getdb_metabolism = function(databaseDIR) {
 }
 
 
- #' Visualize number of significant pathways per group
+ #' @title Visualize Significant Pathways Count by Group
  #'
- #' Create a bar chart summarizing the number of significantly different
- #' pathways per group (up- and down-regulated) based on limma results
- #' produced by \code{GSVAlimmaTest}. The plot is saved as a PDF in
- #' \code{OUTDIR}.
+ #' @description
+ #' Generates a stacked bar chart showing the count of significantly dysregulated
+ #' pathways (up- and down-regulated) across multiple groups (e.g., cancer types).
+ #' Significance is determined by statistical threshold applied to differential
+ #' expression results from limma testing on GSVA pathway activity scores.
+ #' The visualization helps identify which groups have the most pathway dysregulation.
  #'
  #' @param OUTDIR Character scalar. Directory where the output PDF
  #'   (\file{Sig_pathway_nr.pdf}) will be written.
@@ -527,9 +609,33 @@ getdb_metabolism = function(databaseDIR) {
  #'   contain a component \code{rslt_of_interest} (a data frame produced by
  #'   \code{limma::topTable}) with at least \code{logFC} and \code{adj.P.Val}
  #'   columns.
+ #' @param significance_statistic Character string naming the column in the
+ #'   result data frames to use for significance filtering
+ #'   (e.g., "adj.P.Val", "p.value"). Default: "adj.P.Val".
+ #' @param sig.cutoff Numeric. Significance threshold for pathway selection.
+ #'   Only pathways with `significance_statistic < sig.cutoff` are counted
+ #'   as significant. Default: 0.05.
+ #' @param w Numeric. Width of output PDF in inches. Default: 3.
+ #' @param h Numeric. Height of output PDF in inches. Default: 3.5.
  #'
- #' @return Invisibly returns the path to the saved PDF file; the primary
- #'   side-effect is the creation of \file{Sig_pathway_nr.pdf} in \code{OUTDIR}.
+ #' @details
+ #' The function:
+ #' \enumerate{
+ #'   \item Filters pathways for each group using the specified significance threshold
+ #'   \item Counts up-regulated (logFC > 0) and down-regulated (logFC < 0) pathways
+ #'   \item Down-regulated counts are displayed as negative values
+ #'   \item Creates a stacked bar chart with groups on x-axis and
+ #'     up-regulated pathways in red (firebrick) and down-regulated in blue (steelblue)
+ #'   \item Groups are ordered by total significant pathway count
+ #' }
+ #'
+ #' @importFrom dplyr %>% filter arrange mutate
+ #' @importFrom tidyr gather
+ #' @importFrom tibble rownames_to_column
+ #' @importFrom ggplot2 ggplot aes geom_col scale_fill_manual geom_hline labs theme_minimal theme element_text
+ #'
+ #' @return Invisibly returns NULL. A PDF file named "Sig_pathway_nr.pdf" is
+ #'   written to `OUTDIR` containing the stacked bar chart.
  #'
  visualizeSigNr = function(
     OUTDIR, GSVA_limma_rslt, 
@@ -560,59 +666,108 @@ getdb_metabolism = function(databaseDIR) {
 }
 
 
-#' Dot-plot summary of GSVA metabolic activity-based limma results across cancer types
+#' @title Create Dot-Plot of Dysregulated Metabolic Pathways Across Cancer Types
+ #'
+#' @description
+#' Generates a comprehensive dot-plot summarizing pathway-level differential
+#' expression results (from limma) across multiple cancer cohorts in TCGA.
+#' Each dot represents a pathway-cohort pair, positioned by cancer type and pathway,
+#' with size representing significance level and color representing the direction
+#' and magnitude of dysregulation (t-statistic). Pathways can be hierarchically
+#' organized by metabolic class with nested faceting.
 #'
-#' Produce a dot-plot that summarizes pathway-level limma results across
-#' multiple cancer cohorts (TCGA). For each cohort (element of
-#' \code{rlst_list}) the function selects significant pathways by
-#' adjusted p-value, annotates directionality (Up/Down) based on
-#' \code{logFC}, joins pathway metadata from \code{taskHierarchy}, and
-#' draws a dot for each pathway-cohort pair sized by adjusted p-value and
-#' colored by the limma t-statistic. The plot is written to a PDF in
-#' \code{OUTDIRV}.
+#' @param sig_statistic Character string naming the significance column in
+#'   `rlst_list` data frames. Default: "adj.P.Val".
 #'
-#' @param rlst_list list. A list of data.frames or tibbles produced by
-#'   limma (one element per cohort). Each element should contain at
-#'   least the columns \code{logFC}, \code{adj.P.Val} and \code{t}.
-#' @param adj.P.Val.cutoff numeric. Adjusted p-value threshold used to
-#'   select significant pathways (default: user-supplied). Only rows with
-#'   \code{adj.P.Val < adj.P.Val.cutoff} are plotted.
-#' @param w numeric or NULL. Plot width in inches; a sensible default is
-#'   computed when \code{NULL}.
-#' @param h numeric or NULL. Plot height in inches; a sensible default is
-#'   computed when \code{NULL}.
-#' @param OUTDIRV character. Directory where the generated PDF dotplot
-#'   will be saved.
-#' @param Depth character. Column name in \code{taskHierarchy} to use as
-#'   the pathway label (default: \code{"gs_name")).
-#' @param lowfigure logical. When \code{TRUE} produce a compact layout
-#'   with legends placed below the plot (default: \code{FALSE}).
-#' @param title character. Plot title (default: \code{"Dysregulated pathways_TCGA"}).
-#' @param suffix character. Filename suffix appended to the saved PDF
-#'   (default: \code{"TCGA").
-#' @param taskHierarchy data.frame. Mapping table containing pathway
-#'   metadata; must include the pathway label column named by
-#'   \code{gs_name} and a \code{class} column used for optional nesting.
-#' @param nested logical. If \code{TRUE} use nested facets to group
-#'   pathways by their class (default: \code{TRUE}).
-#' @param top logical. If \code{TRUE} keep only frequently significant
-#'   pathways (default: \code{FALSE}).
-#' @param color_low character. Color used for negative t-statistics
-#'   (default \code{"skyblue").
-#' @param color_high character. Color used for positive t-statistics
-#'   (default \code{"purple").
+#' @param sig.cutoff Numeric. Significance threshold for selecting significant
+#'   pathways. Only pathways with `sig_statistic < sig.cutoff` are displayed.
 #'
-#' @return Invisibly returns the ggplot object used to render the
-#'   figure. The primary side-effect is the PDF file
-#'   \code{Dotplot_all_adj.P.ValCutoff<cutoff>_<suffix>.pdf} written into
-#'   \code{OUTDIRV}.
+#' @param adj.P.Val.cutoff Numeric or NULL. Deprecated alias for `sig.cutoff`.
+#'   If provided, overrides `sig.cutoff`. Default: NULL.
+#'
+#' @param w Numeric or NULL. Plot width in inches. When NULL, width is
+#'   automatically computed based on number of cohorts. Default: NULL.
+#'
+#' @param h Numeric or NULL. Plot height in inches. When NULL, height is
+#'   automatically computed based on number of pathways. Default: NULL.
+#'
+#' @param OUTDIRV Character string specifying the output directory where the
+#'   PDF will be saved. Must be a valid, writable directory path.
+#'
+#' @param Depth Character string naming the column in `taskHierarchy` to use
+#'   as the pathway label displayed on the y-axis.
+#'   Default: "gs_name".
+#'
+#' @param lowfigure Logical. When TRUE, produces a compact layout with
+#'   legends positioned below and horizontally aligned. Default: FALSE.
+#'
+#' @param title Character string for the plot title.
+#'   Default: "Dysregulated pathways_TCGA".
+#'
+#' @param suffix Character string appended to the output PDF filename to
+#'   distinguish between different runs or datasets. Default: "TCGA".
+#'
+#' @param taskHierarchy Data.frame containing pathway metadata. Must include:
+#'   \itemize{
+#'     \item Column named by `Depth` parameter (typically "gs_name"): pathway identifiers
+#'     \item `class` column: metabolic class for each pathway
+#'   }
+#'   Default: `cfs` (expects global variable).
+#'
+#' @param nested Logical. When TRUE, use nested faceting to group pathways
+#'   hierarchically by metabolic class. When FALSE, display all pathways
+#'   without class-based grouping. Default: TRUE.
+#'
+#' @param top Logical. When TRUE, filter to show only pathways that are
+#'   significantly dysregulated in more than the median number of cohorts.
+#'   Useful for focusing on frequently dysregulated pathways. Default: FALSE.
+#'
+#' @param color_low Character string specifying the color for negative
+#'   t-statistics (down-regulated pathways). Default: "skyblue".
+#'
+#' @param color_high Character string specifying the color for positive
+#'   t-statistics (up-regulated pathways). Default: "purple".
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Filters pathways for significance using the specified threshold
+#'   \item Classifies pathways as Up, Down, or NonSignificant based on logFC and threshold
+#'   \item Maps pathway names using `taskHierarchy`
+#'   \item Clips t-statistics to ±5 range to improve visualization
+#'   \item Abbreviates metabolic class names for clarity (e.g., "CAR" for Carbohydrate,
+#'     "LIP" for Lipid, "ENE" for Energy)
+#'   \item Creates a point plot with:
+#'     \itemize{
+#'       \item X-axis: cancer cohorts
+#'       \item Y-axis: pathways (wrapped text)
+#'       \item Point size: inverse of significance (smaller p-value = larger point)
+#'       \item Point color: t-statistic (blue for negative, purple for positive)
+#'       \item Point shape: regulation direction (diamond for Up, circle for Down)
+#'     }
+#'   \item Optional nested faceting by metabolic class with free y-axis scales
+#' }
+#'
+#' @importFrom dplyr %>% left_join mutate select filter pull
+#' @importFrom tibble rownames_to_column
+#' @importFrom ggplot2 ggplot aes aes_string geom_point facet_nested scale_shape_manual
+#'   ggtitle ylab labs scale_color_gradient2 scale_size theme_bw scale_y_discrete guides
+#'   guide_legend element_blank element_text unit theme
+#' @importFrom stringr str_wrap str_to_title
+#' @importFrom ggh4x facet_nested
+#'
+#' @return Invisibly returns the ggplot2 object representing the dot-plot.
+#'   Primary side-effect is creation of a PDF file in `OUTDIRV` named
+#'   "Dotplot_all_adj.P.ValCutoff<cutoff>_<suffix>.pdf"
 #'
 #' @examples
 #' \dontrun{
-#' makeLimmaDotplot_TCGA(rlst_list, adj.P.Val.cutoff = 0.05, OUTDIRV = "./plots/")
+#'   makeLimmaDotplot_TCGA(rlst_list, sig.cutoff = 0.05, OUTDIRV = "./plots/",
+#'                         suffix = "TCGA")
 #' }
+#'
 #' @export
-
+#' 
 makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val", 
         sig.cutoff, adj.P.Val.cutoff=NULL, w=NULL, h=NULL, OUTDIRV, 
         Depth="gs_name", lowfigure=F, title = "Dysregulated pathways_TCGA", 
@@ -700,30 +855,95 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
 
 
 
- #' Differential effect boxplot by metabolic class
+ #' @title Visualize Differential Metabolic Effects by Pathway Class
  #'
- #' Generate a boxplot summarizing differential effect logFC (weighted by activity level) for
- #' KEGG metabolic pathways aggregated by metabolic class. The function
- #' collects limma test results across input groups, maps pathways to classes
- #' via the provided hierarchy table, and writes a PDF boxplot to
- #' \code{OUT_DIR}.
+ #' @description
+ #' Generates violin plots showing the distribution of differential metabolic effects
+ #' (represented by t-statistics or logFC) across KEGG metabolic pathway classes.
+ #' Differential effects can optionally be weighted by pathway activity level
+ #' (average expression) and winsorized to handle outliers. The function supports
+ #' both single-level (cohort-based) and hierarchical (study-cohort) data structures.
  #'
- #' @param rlst_list A named list of results returned by \code{GSVAlimmaTest()}
- #'   (one element per group). Each element must contain a component
- #'   \code{rslt_of_interest} (a data frame produced by \code{limma::topTable})
- #'   with at least the columns \code{t}, \code{logFC} and \code{adj.P.Val}.
- #' @param taskHierarchy A data.frame or tibble with at least two columns:
- #'   \code{gs_name} (pathway name or ID) and \code{class} (the higher-level
- #'   metabolic class). This table is used to map pathways to classes for
- #'   grouping and plotting.
- #' @param OUT_DIR Character scalar. Directory where the output PDF
- #'   (\file{diffEffectBoxplot_system.pdf}) will be written.
- #' @param w Numeric. Output figure width (in inches).
- #' @param h Numeric. Output figure height (in inches).
- #' @param title Character. Plot title.
+ #' @param rlst_list A named list of results from \code{GSVAlimmaTest()} testing.
+ #'   Supports two structures:
+ #'   \itemize{
+ #'     \item **Single-level**: List of cancer types, each containing
+ #'       \code{$rslt_of_interest} data frame with differential expression results
+ #'     \item **Hierarchical (depth=5)**: Nested list structure with studies
+ #'       at top level, cancer types nested below, then \code{$rslt_of_interest}
+ #'   }
+ #'   Each result data frame must contain columns: \code{t} (or other
+ #'   effect statistic), \code{logFC}, and significance column (default \code{adj.P.Val}).
  #'
- #' @return Invisibly returns the path to the written PDF; primary side-effect
- #'   is creation of \file{diffEffectBoxplot_system.pdf} in \code{OUT_DIR}.
+ #' @param taskHierarchy A data.frame or tibble mapping pathways to metabolic classes,
+ #'   with at least two columns:
+ #'   \itemize{
+ #'     \item `gs_name`: pathway identifier (must match row names in results)
+ #'     \item `class`: metabolic class category for grouping
+ #'   }
+ #'
+ #' @param OUT_DIR Character string specifying the output directory where the PDF
+ #'   will be saved. Must be a valid, writable directory path.
+ #'
+ #' @param weight.effect.by.gene Logical. When TRUE, weights the differential effect
+ #'   statistic by the inverse rank of pathway activity level (AveExpr), giving
+ #'   more weight to effects in highly active pathways. Default: TRUE.
+ #'
+ #' @param effect.statistic Character string naming the column in result data frames
+ #'   to use as the differential effect measure (e.g., "t" for t-statistic).
+ #'   Default: "t".
+ #'
+ #' @param w Numeric. Width of output PDF in inches. Default: 2.
+ #'
+ #' @param h Numeric. Height of output PDF in inches. Default: 3.5.
+ #'
+ #' @param title Character string for the plot title (typically dataset or study name).
+ #'   Default: "Zhou2020".
+ #'
+ #' @param winsorize Logical. When TRUE, clips extreme values to the specified
+ #'   probability quantiles to reduce the influence of outliers. Default: TRUE.
+ #'
+ #' @param probs Numeric. Probability level for winsorization symmetrically applied
+ #'   at both tails (e.g., 0.05 clips at 5th and 95th percentiles).
+ #'   Ignored if \code{winsorize=FALSE}. Default: 0.05.
+ #'
+ #' @param suffix Character string appended to the output PDF filename for
+ #'   distinguishing between different analyses. Default: "".
+ #'
+ #' @param sig.statistic Character string naming the significance column in result
+ #'   data frames (e.g., "adj.P.Val", "p.value"). Default: "adj.P.Val".
+ #'
+ #' @param sig.cutoff Numeric. Significance threshold for filtering pathways.
+ #'   Only pathways with `sig.statistic < sig.cutoff` are included.
+ #'   Default: 0.2.
+ #'
+ #' @details
+ #' The function performs the following steps:
+ #' \enumerate{
+ #'   \item Detects data structure depth to handle single-level or nested hierarchies
+ #'   \item Filters pathways for significance using the specified threshold
+ #'   \item Maps pathway results to metabolic classes
+ #'   \item Standardizes class names by removing common KEGG descriptors
+ #'   \item Optionally weights effects by inverse pathway activity rank
+ #'   \item Optionally winsorizes extreme weighted effects
+ #'   \item Creates violin plots with:
+ #'     \itemize{
+ #'       \item X-axis: metabolic classes (ordered by median effect)
+ #'       \item Y-axis: weighted differential effects
+ #'       \item Fill color: Source/Study (for hierarchical data)
+ #'     }
+ #' }
+ #' Violin plots effectively show the full distribution of effects within
+ #' each pathway class, revealing both typical and extreme dysregulation patterns.
+ #'
+ #' @importFrom dplyr %>% left_join mutate group_by summarise arrange pull
+ #' @importFrom tibble rownames_to_column
+ #' @importFrom ggplot2 ggplot aes geom_violin position_dodge geom_boxplot labs
+ #'   theme_minimal theme element_text
+ #' @importFrom stringr str_to_title
+ #'
+ #' @return Invisibly returns NULL. A PDF file named "diffEffectBoxplot_system<suffix>.pdf"
+ #'   is written to `OUT_DIR` containing the violin plot visualization.
  #'
  diffEffectBoxplot_bySystem_GSVA = function(
         rlst_list, taskHierarchy, OUT_DIR, 
@@ -815,27 +1035,63 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
 
 
  #' Differential effect boxplot by cancer/group
+ #' @title Visualize Differential Metabolic Effects by Cancer Type
  #'
- #' Combine limma test outputs from multiple groups and plot the distribution
- #' of differential effect logFC (weighted by activity level) per group (for example, cancer
- #' types). The function extracts the top-table results provided by
- #' \code{GSVAlimmaTest()}, computes a per-group median effect ordering and
- #' writes a boxplot PDF to the specified output directory.
+ #' @description
+ #' Generates boxplots showing the distribution of differential metabolic effects
+ #' (t-statistics) across different cancer types or cohorts. Effects are weighted
+ #' by pathway activity level (inverse rank of average expression) and winsorized
+ #' at the 5th and 95th percentiles to mitigate outlier influence. Useful for
+ #' comparing metabolic dysregulation patterns across multiple cancer cohorts.
  #'
- #' @param rlst_list Named list. Results returned by \code{GSVAlimmaTest()}
- #'   (one element per group). Each element must contain a component
- #'   \code{rslt_of_interest}, a data frame (as produced by
- #'   \code{limma::topTable}) that includes at minimum the columns
- #'   \code{t}, \code{logFC} and \code{adj.P.Val}.
- #' @param OUT_DIR character(1). Directory where the output PDF will be
- #'   written. The plot file is named \file{diffEffectBoxplot_cancer.pdf}.
- #' @param w numeric(1). Figure width in inches (default: 2.75).
- #' @param h numeric(1). Figure height in inches (default: 3.0).
- #' @param title character(1). Plot title (default: "Zhou2020").
+ #' @param rlst_list A named list of results from \code{GSVAlimmaTest()} 
+ #'   (one element per cancer type or cohort). Each element must contain
+ #'   a component \code{$rslt_of_interest}, which should be a data frame produced by
+ #'   \code{limma::topTable()} with at least these columns:
+ #'   \itemize{
+ #'     \item `t`: t-statistic from limma testing
+ #'     \item `logFC`: log2 fold-change values
+ #'     \item `AveExpr`: average expression level
+ #'     \item `adj.P.Val`: adjusted p-values (optional, for filtering)
+ #'   }
+ #'   Row names should be pathway identifiers. List names are used as cancer type labels.
  #'
- #' @return Invisibly returns the path to the generated PDF; the primary
- #'   side-effect is creation of \file{diffEffectBoxplot_cancer.pdf} in
- #'   \code{OUT_DIR}.
+ #' @param OUT_DIR Character string specifying the output directory where the PDF
+ #'   will be saved. Must be a valid, writable directory path.
+ #'
+ #' @param w Numeric. Width of output PDF in inches. Default: 2.75.
+ #'
+ #' @param h Numeric. Height of output PDF in inches. Default: 3.0.
+ #'
+ #' @param title Character string for the plot title (typically dataset or cohort name).
+ #'   Default: "Zhou2020".
+ #'
+ #' @details
+ #' The function:
+ #' \enumerate{
+ #'   \item Collects differential effect results across all cancer types
+ #'   \item Computes inverse rank of average expression for each pathway
+ #'   \item Weights t-statistics by the inverse expression rank to emphasize
+ #'     effects in highly active pathways
+ #'   \item Winsorizes weighted effects at 5th and 95th percentiles to
+ #'     reduce extreme value influence
+ #'   \item Orders cancer types by median t-statistic
+ #'   \item Creates boxplots with:
+ #'     \itemize{
+ #'       \item X-axis: cancer types (ordered by median effect)
+ #'       \item Y-axis: weighted differential effects
+ #'       \item Green colored boxes showing quartile distributions
+ #'     }
+ #' }
+ #' This visualization allows rapid identification of cancer types with
+ #' predominantly up-regulated vs. down-regulated metabolic pathways.
+ #'
+ #' @importFrom dplyr %>% mutate group_by summarise arrange pull
+ #' @importFrom tibble rownames_to_column
+ #' @importFrom ggplot2 ggplot aes geom_boxplot labs theme_minimal theme element_text
+ #'
+ #' @return Invisibly returns NULL. A PDF file named "diffEffectBoxplot_cancer.pdf"
+ #'   is written to `OUT_DIR` containing the boxplot visualization.
  #'
 diffEffectBoxplot_byCancer_GSVA = function(
     rlst_list, OUT_DIR, w=2.75, h=3.0, title="Zhou2020") {
@@ -916,6 +1172,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #' @param OUTDIR character(1). Directory where the output PDF
  #'   (\file{BinaryTaskScores_<Depth>.pdf}) will be written. Directory must be
  #'   writable; caller should create it if it does not exist.
+ #' 
+ #' @importFrom dplyr %>%
  #'
  #' @return A data.frame with one row per sample and category containing the
  #'   aggregated statistics: \code{MeanTaskScore}, \code{MeanActiveTaskScore},
@@ -972,6 +1230,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #' @param OUTDIR character(1). Directory where the output PDF
  #'   (\file{Task_size_system.pdf}) will be written. The directory must be
  #'   writable; the caller should create it if necessary.
+ #' 
+ #' @importFrom dplyr %>%
  #'
  #' @return Invisibly returns the summarized data frame of gene counts per
  #'   task and system. The main side-effect is writing
@@ -1004,6 +1264,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
     dev.off()
 }
 
+
+
  #' Circular packing plot of CellFie task hierarchy
  #'
  #' Build and save a circular packing plot that summarizes tasks and their
@@ -1020,6 +1282,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #' @param out_dir character(1). Directory where the output PDF
  #'   (\file{TaskSummary.pdf}) will be written. The directory must be
  #'   writable; caller should create it if needed.
+ #' 
+ #' @importFrom dplyr %>%
  #'
  #' @return Invisibly returns the ggplot2 object used to render the figure.
  #'   The primary side-effect is writing \file{TaskSummary.pdf} to
@@ -1055,6 +1319,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
     dev.off()
 }
 
+
+
  #' Process the CellFie output
  #'
  #' Import, clean and summarise CellFie output directories. This function
@@ -1082,6 +1348,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #'   \code{Cancer_Condition}.
  #' @param samples2keep character(). Vector of sample IDs to retain; useful
  #'   to exclude unwanted samples after import (default: all samples present).
+ #' 
+ #' @importFrom dplyr %>%
  #'
  #' @return A single data.frame (invisibly) containing the concatenated,
  #'   post-processed CellFie results across groups. Side-effects: multiple
@@ -1262,6 +1530,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
 }
 
 
+
+
 #' Perform limma differential analysis on CellFie-inferred metabolic activities
 #'
 #' Fit linear models and perform empirical Bayes moderation using limma on
@@ -1288,6 +1558,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
 #' @param paired_variable character scalar giving the column name in `meta`
 #'   that links paired samples (for example a patient identifier). Default:
 #'   "Patient".
+#' 
+#' @importFrom dplyr %>%
 #' 
 #' @return A list with components:
 #'   - `rslt_of_interest`: Differential result table for Group.
@@ -1384,6 +1656,8 @@ limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL,
 #'   samples.
 #' @param height numeric. Figure height used for heatmap output (default
 #'   23).
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return A list invisibly returned with elements:
 #'   \item{cf5_Depth}{The reshaped data.frame used for analysis (rows = tasks at the chosen depth, columns = samples).}
@@ -1491,6 +1765,10 @@ runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
     return(list(cf5_Depth=cf5_Depth, rlst_list= rlst_list_paired))
 }
 
+
+
+
+
 #' Generate a task score heatmap across all samples and groups
 #'
 #' Create a combined heatmap of tasks that are frequently significant
@@ -1517,6 +1795,8 @@ runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
 #' @param meta data.frame. Sample metadata containing at least
 #'   `Sample`, `Cancer_type`, and `Condition`, used for column
 #'   annotations.
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return Invisibly returns the plotting object (if available) or NULL.
 #' The main effect of the function is side-effect: PDF heatmap files are
@@ -1575,6 +1855,9 @@ makeTaskScoreHeatmap_CellFie = function(rlst_list, cf5_Depth,
         width=w+0.14*L, height=h)
 }
 
+
+
+
 #' Make limma dotplot to visualize the significant metabolic tasks/subsystems/systems across cancers
 #'
 #' Create a dot-plot summarizing differential behavior of tasks (or
@@ -1596,6 +1879,8 @@ makeTaskScoreHeatmap_CellFie = function(rlst_list, cf5_Depth,
 #' @param nested logical. If TRUE facets are nested by `Depth1` (requires `ggh4x`).
 #' @param filter logical. If TRUE filter tasks to the top frequent ones based on `probs_cutoff`.
 #' @param probs_cutoff numeric. Quantile threshold used when `filter = TRUE` to select top tasks (default 0.35).
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return A ggplot object (invisibly returned) and a PDF file written to `OUTDIRV`.
 #'
@@ -1727,6 +2012,8 @@ makeLimmaDotplot_CellFie = function(rlst_list,
 #' @param adj.P.Val.cutoff numeric. Adjusted p-value threshold to define significance (default 0.05).
 #' @param logFC.cutoff numeric. Log2 fold-change threshold used to highlight up- and down-regulated features (default 0).
 #' @param lfcShrink logical. If \code{TRUE}, annotate the plot title to indicate log-fold-change shrinkage was applied. Default: \code{FALSE}.
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return A \code{ggplot} object (invisibly returned) showing log2 fold-change vs -log10(adjusted p-value).
 #'
@@ -1776,6 +2063,8 @@ doVolcano_CellFie = function(resi, NAME,
 #' @param h numeric or NULL. Figure height in inches
 #' @param w numeric or NULL. Figure width in inches
 #' 
+#' @importFrom dplyr %>%
+#' 
 SampleSizeCircularBarplot = function(meta, title="Pan-cancer tasks", OUT_DIR, h=4, w=4.5) {
     temp = meta %>% dplyr::count(Cancer_type, Condition) %>%
         tidyr::spread(Condition, n) %>%
@@ -1817,6 +2106,8 @@ SampleSizeCircularBarplot = function(meta, title="Pan-cancer tasks", OUT_DIR, h=
 #' @param w numeric. Figure width in inches (default 2.75).
 #' @param h numeric. Figure height in inches (default 3.0).
 #' @param title character. Plot title (default: "Pan-cancer tasks").
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return Invisibly returns the ggplot object after writing a PDF to
 #'   \code{OUT_DIR}. The primary effect is the written PDF file
@@ -1833,7 +2124,8 @@ SampleSizeCircularBarplot = function(meta, title="Pan-cancer tasks", OUT_DIR, h=
 #' }
 #' @export
 
-ActivityBoxplot_byCancer = function(meta, cf, OUT_DIR, w=2.75, h=3.0, title="Pan-cancer tasks") {
+ActivityBoxplot_byCancer = function(
+    meta, cf, OUT_DIR, w=2.75, h=3.0, title="Pan-cancer tasks") {
     cf5 = cf %>% dplyr::left_join(meta) %>% 
         dplyr::mutate(Condition=gsub("Normal", "NAT", Condition)) %>%
         dplyr::mutate(Cancer_Condition=paste0(Cancer_type,"_",gsub("Normal","NAT",Condition)))
@@ -1875,6 +2167,8 @@ ActivityBoxplot_byCancer = function(meta, cf, OUT_DIR, w=2.75, h=3.0, title="Pan
 #' @param w numeric. Figure width in inches (default 2).
 #' @param h numeric. Figure height in inches (default 3.5).
 #' @param title character. Plot title (default: "Pan-cancer tasks").
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return Invisibly returns the ggplot object after writing a PDF to
 #'   \code{OUT_DIR}. The primary effect is the written PDF file
@@ -1886,7 +2180,8 @@ ActivityBoxplot_byCancer = function(meta, cf, OUT_DIR, w=2.75, h=3.0, title="Pan
 #' }
 #' @export
 
-ActivityBoxplot_bySystem = function(cf, OUT_DIR, w=2, h=3.5, title="Pan-cancer tasks") {
+ActivityBoxplot_bySystem = function(
+    cf, OUT_DIR, w=2, h=3.5, title="Pan-cancer tasks") {
     B_Z_N0 = cf %>% group_by(Depth1, Depth3) %>%
         dplyr::summarise(meanTaskScore = mean(TaskScore, na.rm=T), .groups = "drop")  
 
@@ -1931,6 +2226,8 @@ ActivityBoxplot_bySystem = function(cf, OUT_DIR, w=2, h=3.5, title="Pan-cancer t
 #' @param h numeric. Figure height in inches (default 3.0).
 #' @param OUT_DIR character. Directory where the PDF output
 #'   (\code{SigDiffNr.pdf}) will be written.
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return Invisibly returns the ggplot object used to draw the figure.
 #'   The primary side effect is the creation of the PDF file
@@ -1943,7 +2240,8 @@ ActivityBoxplot_bySystem = function(cf, OUT_DIR, w=2, h=3.5, title="Pan-cancer t
 #' }
 #' @export
 
-SigNrBarplot = function(rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
+SigNrBarplot = function(
+    rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
     temp = c(sapply(rlst_list, function(cancer) {
         cancer$rslt_of_interest %>% 
                 filter(adj.P.Val<sig.cutoff&logFC>0) %>% nrow()
@@ -1978,40 +2276,105 @@ SigNrBarplot = function(rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
 }
 
 
-#' Boxplot of limma differential effect (t statistic) by system (Depth1)
+#' @title Visualize Differential Task Effects by System (Hierarchical CellFie Data)
 #'
-#' Build a boxplot summarizing the differential effect logFC (weighted by activity level) for tasks
-#' grouped at the system level (Depth1). For each cohort in
-#' \code{rlst_list} the function expects a data.frame \code{rslt_of_interest}
-#' containing at least the limma columns \code{t}, \code{logFC}, and
-#' \code{adj.P.Val}. The function merges these results with the
-#' task hierarchy in \code{cf} to map tasks (Depth3) to systems (Depth1),
-#' orders systems by median effect, and writes a PDF plot file to
-#' \code{OUT_DIR}.
+#' @description
+#' Generates violin or boxplots showing the distribution of differential task effects
+#' (t-statistics) aggregated by system level (Depth1) from hierarchical CellFie 
+#' task annotations. Supports both single-level (cohort-based) and nested 
+#' (study-cohort) data structures. Effects can optionally be weighted by task 
+#' activity level and winsorized to handle outliers. Useful for comparing 
+#' metabolic task dysregulation across different biological systems.
 #'
-#' @param rlst_list named list. Typical input is the output from
-#'   \code{runLimmaCellFie} or \code{limmaTest_CellFie}; each element must
-#'   contain a data.frame named \code{rslt_of_interest} with at least
-#'   the columns \code{t}, \code{adj.P.Val}, and \code{logFC}.
-#' @param cf data.frame. CellFie output containing at minimum the columns
-#'   \code{Depth1} and \code{Depth3} so tasks can be mapped to systems.
-#' @param OUT_DIR character. Directory where the PDF output file will be written.
-#' @param w numeric. Figure width in inches (default 2).
-#' @param h numeric. Figure height in inches (default 3.5).
-#' @param title character. Plot title (default: "Pan-cancer tasks").
+#' @param rlst_list A named list of results from \code{limmaTest_CellFie()} or 
+#'   \code{runLimmaCellFie()}. Supports two structures:
+#'   \itemize{
+#'     \item **Single-level**: Each element represents a cohort/cancer type and must 
+#'       contain a \code{$rslt_of_interest} data frame with limma results
+#'     \item **Hierarchical (depth=5)**: Nested structure with studies at top level,
+#'       cancer types nested below, then \code{$rslt_of_interest} data frames
+#'   }
+#'   Each result data frame must contain at minimum: `t` (t-statistic), 
+#'   `logFC`, `AveExpr`, and a significance column (default `P.Value` or `adj.P.Val`).
 #'
-#' @return Invisibly returns the ggplot object used to draw the figure.
-#'   The primary side effect is the written PDF file
-#'   \code{diffEffectBoxplot_system.pdf} inside \code{OUT_DIR}.
+#' @param cf A data.frame representing the CellFie task hierarchy, containing at 
+#'   minimum the columns:
+#'   \itemize{
+#'     \item `Depth1`: System-level category (highest hierarchical level)
+#'     \item `Depth3`: Individual task/pathway identifier (lowest level)
+#'   }
+#'   Maps task results to their parent system categories for aggregation.
+#'   For hierarchical input data, can be a named list of hierarchy tables (one per study).
+#'
+#' @param OUT_DIR Character string specifying the output directory where the PDF
+#'   will be saved. Must be a valid, writable directory path.
+#'
+#' @param w Numeric. Width of output PDF in inches. Default: 2.
+#'
+#' @param h Numeric. Height of output PDF in inches. Default: 3.5.
+#'
+#' @param title Character string for the plot title (typically dataset or analysis name).
+#'   Default: "Pan-cancer tasks".
+#'
+#' @param sig.statistic Character string naming the significance column in result 
+#'   data frames (e.g., "P.Value", "adj.P.Val"). Default: "P.Value".
+#'
+#' @param sig.cutoff Numeric. Significance threshold for filtering tasks.
+#'   Only tasks with `sig.statistic < sig.cutoff` are included.
+#'   Default: 0.05.
+#'
+#' @param weight.effect.by.gene Logical. When TRUE, weights the differential effect 
+#'   (t-statistic) by the inverse rank of task activity level (AveExpr), emphasizing 
+#'   effects in highly active tasks. Default: FALSE.
+#'
+#' @param winsorize.effect Logical. When TRUE, clips extreme weighted effect values 
+#'   to the specified probability quantiles. Default: TRUE.
+#'
+#' @param prob Numeric. Probability level for symmetrical winsorization at both tails 
+#'   (e.g., 0.05 clips at 5th and 95th percentiles). Ignored if 
+#'   `winsorize.effect=FALSE`. Default: 0.05.
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Detects data structure depth (single-level vs. hierarchical)
+#'   \item Filters tasks for significance using the specified threshold
+#'   \item Maps tasks to systems using the hierarchy table (`Depth3` to `Depth1`)
+#'   \item Optionally weights effects by inverse activity rank
+#'   \item Optionally winsorizes extreme weighted effects
+#'   \item Orders systems by median effect across all tasks
+#'   \item Creates visualization with:
+#'     \itemize{
+#'       \item X-axis: system categories (ordered by median effect)
+#'       \item Y-axis: weighted differential effects
+#'       \item Single-level data: boxplots
+#'       \item Hierarchical data: violin plots with study-based color fill
+#'     }
+#' }
+#' Violin plots effectively display the full distribution of task effects 
+#' within each system, revealing both typical and extreme dysregulation patterns.
+#'
+#' @importFrom dplyr %>% left_join select unique group_by summarise arrange pull mutate
+#' @importFrom tibble rownames_to_column
+#' @importFrom ggplot2 ggplot aes geom_violin geom_boxplot position_dodge 
+#'   scale_fill_manual labs theme_minimal theme element_text
+#'
+#' @return Invisibly returns the ggplot2 object used to generate the visualization.
+#'   Primary side effect is creation of "diffEffectBoxplot_system.pdf" in `OUT_DIR`.
 #'
 #' @examples
 #' \dontrun{
-#' # rlst_list <- list(OV = list(rslt_of_interest = ov_df), BRCA = list(rslt_of_interest = brca_df))
-#' diffEffectBoxplot_bySystem(rlst_list, cf, OUT_DIR = "./plots/", w = 3, h = 4, title = "Study Systems")
+#'   rlst_list <- list(
+#'     OV = list(rslt_of_interest = ov_limma_results),
+#'     BRCA = list(rslt_of_interest = brca_limma_results)
+#'   )
+#'   diffEffectBoxplot_bySystem(rlst_list, cf, OUT_DIR = "./plots/", 
+#'                              w = 3, h = 4, title = "Metabolic Systems")
 #' }
 #' @export
-
-diffEffectBoxplot_bySystem = function(rlst_list, cf, 
+#' 
+diffEffectBoxplot_bySystem = function(
+    rlst_list, cf, 
     OUT_DIR, w=2, h=3.5, title="Pan-cancer tasks", sig.statistic="P.Value", sig.cutoff=0.05,
     weight.effect.by.gene = FALSE, winsorize.effect = T, prob=0.05) {
     depth = function(x) {
@@ -2115,6 +2478,8 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf,
 #' @param w numeric. Figure width in inches (default 2.75).
 #' @param h numeric. Figure height in inches (default 3).
 #' @param title character. Plot title (default: "Pan-cancer tasks").
+#' 
+#' @importFrom dplyr %>%
 #'
 #' @return Invisibly returns the ggplot object used to draw the figure.
 #'   The main side-effect is the written PDF file
@@ -2127,7 +2492,8 @@ diffEffectBoxplot_bySystem = function(rlst_list, cf,
 #' }
 #' @export
 
-diffEffectBoxplot_byCancer = function(rlst_list, OUT_DIR, w=2.75, h=3.0, title="Pan-cancer tasks") {
+diffEffectBoxplot_byCancer = function(
+    rlst_list, OUT_DIR, w=2.75, h=3.0, title="Pan-cancer tasks") {
     B_Z_N0 = lapply(names(rlst_list), function(cancer){
         temp = rlst_list[[cancer]]$rslt_of_interest
         temp$Cancer_type = cancer
@@ -2267,12 +2633,58 @@ getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
 
 
 
-# Feature differential analysis in a CellFie framework and feature co-expression network analysis
-#' Convert gene entrez ID to gene symbol using mygene, then extract the LIPIDS METABOLISM.
-#' 
-#' @param taskInfo2 A cellfie output tabel generated with the processCellFieOutput() function. It should have a column named GeneAssociatedToEssentialRxnsTask.
-#' @examples 
-#' # getSystem(taskInfo2)
+#' @title Extract and Annotate CellFie Tasks by System
+#'
+#' @description
+#' Converts gene entrez IDs to gene symbols using the mygene database query service,
+#' then filters CellFie output tasks to extract only those belonging to specified
+#' metabolic systems (e.g., Lipid Metabolism, Energy Metabolism). This is useful
+#' for focusing downstream analyses on specific metabolic categories.
+#'
+#' @param taskInfo2 A data frame containing CellFie output, typically generated by
+#'   \code{processCellFieOutput()}. Must contain at minimum:
+#'   \itemize{
+#'     \item `GeneAssociatedToEssentialRxnsTask`: Column with gene entrez IDs
+#'       (numeric or character) to be converted to gene symbols
+#'     \item `Depth1`: Column containing system/pathway classification
+#'       (higher-level metabolic category)
+#'   }
+#'   Additional columns from CellFie output are preserved in the result.
+#'
+#' @param System Character vector specifying one or more system names to filter by.
+#'   These should match values in the `Depth1` column (e.g., "Carbohydrate metabolism",
+#'   "Lipid metabolism", "Energy metabolism").
+#'
+#' @details
+#' The function performs the following steps:
+#' \enumerate{
+#'   \item Extracts unique entrez gene IDs from the input table
+#'   \item Queries the mygene service to retrieve gene symbols for each ID
+#'   \item Adds a new column `GeneAssociatedToEssentialRxnsTask_symbol` with
+#'     the converted gene symbols mapped back to the original entries
+#'   \item Filters rows to keep only those where `Depth1` matches one of the
+#'     specified systems
+#'   \item Returns the filtered and annotated table
+#' }
+#' This function requires internet connectivity for mygene queries.
+#'
+#' @importFrom mygene queryMany
+#' @importFrom dplyr filter %>%
+#'
+#' @return A filtered data frame containing only tasks from the specified systems,
+#'   with an added column `GeneAssociatedToEssentialRxnsTask_symbol` containing
+#'   the gene symbols corresponding to the entrez IDs.
+#'
+#' @examples
+#' \dontrun{
+#'   # Extract lipid metabolism tasks
+#'   lipid_tasks <- getSystem(taskInfo2, System = "Lipid metabolism")
+#'   
+#'   # Extract multiple systems
+#'   energy_lipid <- getSystem(taskInfo2, System = c("Energy metabolism", "Lipid metabolism"))
+#' }
+#'
+#' @export
 #' 
 getSystem = function(taskInfo2, System) {
     entrezID = unique(taskInfo2$GeneAssociatedToEssentialRxnsTask)
@@ -2290,6 +2702,98 @@ getSystem = function(taskInfo2, System) {
     return(system)
 }
 
+
+#' @title Create Heatmap of Differential Feature Expression Across Cohorts
+#'
+#' @description
+#' Generates a comprehensive heatmap visualizing log2 fold-changes (logFC) of features
+#' (genes, metabolites, tasks) across multiple cohorts or conditions. The heatmap includes
+#' significance annotations (asterisks for FDR < 0.05) and task/pathway annotations in
+#' the row margin. Features are sorted by total logFC across cohorts, and logFC values
+#' are capped at specified thresholds for improved color gradient visualization.
+#'
+#' @param limma_rslt A named list of limma differential expression results, with one
+#'   element per cohort or condition. Each element should be a data frame containing:
+#'   \itemize{
+#'     \item `Feature`: Feature identifiers (gene names, metabolite IDs, task names, etc.)
+#'     \item `logFC`: log2 fold-change values
+#'     \item `adj.P.Val`: Adjusted p-values (FDR) for significance testing
+#'   }
+#'   List names become cohort labels displayed on the heatmap x-axis.
+#'
+#' @param taskInfo A data frame containing feature annotation information, including:
+#'   \itemize{
+#'     \item `GeneAssociatedToEssentialRxnsTask_symbol`: Gene or task identifier
+#'       (must match values in the feature row names)
+#'     \item Column specified by `depth` parameter: Feature grouping/classification
+#'       (e.g., pathway, system, or metabolic category)
+#'   }
+#'   Used to annotate rows in the heatmap with feature classification.
+#'
+#' @param outdir Character string specifying the output directory where the PDF
+#'   heatmap will be saved. Default: "." (current directory).
+#'
+#' @param h Numeric or NULL. Height of output PDF in inches. When NULL, automatically
+#'   computed based on number of features. Default: NULL.
+#'
+#' @param w Numeric or NULL. Width of output PDF in inches. When NULL, automatically
+#'   computed based on number of cohorts and annotation categories. Default: NULL.
+#'
+#' @param max_logFC Numeric. Upper and lower bounds for logFC values displayed in
+#'   the heatmap. LogFC values exceeding these bounds are clipped (winsorized) to
+#'   improve color gradient visualization and focus on moderate effect sizes.
+#'   Default: 3.
+#'
+#' @param depth Character string naming the column in `taskInfo` to use for row
+#'   annotations (e.g., "Depth3" for CellFie task hierarchy). Default: "Depth3".
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Collects logFC values across all cohorts into a wide-format matrix
+#'   \item Collects adjusted p-values in a parallel matrix for significance testing
+#'   \item Sorts features by total logFC across cohorts (descending)
+#'   \item Creates significance indicator matrix (asterisks for adj.P.Val < 0.05)
+#'   \item Builds task/pathway annotation matrix for rows using specified `depth` column
+#'   \item Clips logFC values to ±max_logFC range (winsorization)
+#'   \item Generates heatmap with:
+#'     \itemize{
+#'       \item Color gradient: blue (negative logFC) → white (zero) → red (positive logFC)
+#'       \item Asterisks overlaid for significant features
+#'       \item Row annotations showing feature classification/pathway
+#'       \item Features sorted by total effect magnitude
+#'     }
+#'   \item Automatically scales PDF dimensions based on data size
+#' }
+#' The heatmap effectively summarizes differential expression patterns across
+#' multiple cohorts and highlights which features are consistently dysregulated.
+#'
+#' @importFrom dplyr select full_join filter mutate %>%
+#' @importFrom tibble column_to_rownames
+#' @importFrom tidyr pivot_wider
+#' @importFrom pheatmap pheatmap
+#' @importFrom colorRampPalette
+#'
+#' @return Invisibly returns the heatmap object. Primary side effect is creation
+#'   of a PDF file in `outdir` containing the feature expression heatmap.
+#'
+#' @examples
+#' \dontrun{
+#'   # Create a heatmap of differential features across three cohorts
+#'   visualizeDiffFeatures(
+#'     limma_rslt = list(
+#'       Cohort1 = cohort1_limma_results,
+#'       Cohort2 = cohort2_limma_results,
+#'       Cohort3 = cohort3_limma_results
+#'     ),
+#'     taskInfo = feature_annotations,
+#'     outdir = "./plots/",
+#'     max_logFC = 2.5,
+#'     depth = "Depth3"
+#'   )
+#' }
+#'
+#' @export
 
 visualizeDiffFeatures = function(
     limma_rslt=limma_rslt_list, 
@@ -2359,13 +2863,179 @@ visualizeDiffFeatures = function(
     dev.off()
 }
 
+
+#' @title Perform System-Level Differential Analysis Across Multiple CellFie Cohorts
+#'
+#' @description
+#' Comprehensive pipeline for extracting specific metabolic system genes/tasks from 
+#' CellFie output and performing paired differential expression analysis across multiple 
+#' cohorts (e.g., Hu2025, Zhou2020). The function filters genes associated with a 
+#' specified metabolic system, conducts limma testing on paired samples (tumor vs. normal),
+#' and returns consolidated differential analysis results with feature annotation. 
+#' Supports flexible data source paths for reproducibility and modularity.
+#'
+#' @param System Character string specifying the metabolic system to analyze
+#'   (e.g., "LIPIDS METABOLISM", "CARBOHYDRATES METABOLISM", "ENERGY METABOLISM"). 
+#'   Must match a value in the `Depth1` column of CellFie output. Default: "LIPIDS METABOLISM".
+#'
+#' @param outDirHu Character string specifying the output directory for Hu2025
+#'   cohort results. System tasks and differential analysis results will be saved here.
+#'   Directory is created if it does not exist.
+#'
+#' @param outDirZhou Character string specifying the output directory for Zhou2020
+#'   cohort results. System tasks and differential analysis results will be saved here.
+#'   Directory is created if it does not exist.
+#'
+#' @param taskInfo2_path Character string specifying the path to CellFie task information
+#'   RDS file for Hu2025 cohort (contains Depth1, Depth3 hierarchy and gene associations).
+#'   Default: "../results/CellFie_Hu2025/CellFieOut/taskInfo.RDS".
+#'
+#' @param detailScoring_new_path2 Character string specifying the path to CellFie output
+#'   CSV file for Zhou2020 cohort with task annotations and gene associations.
+#'   Default: "../results/CellFie_Zhou2020/CellFieOut/all/detailScoring_new.csv".
+#'
+#' @param NdatHu_path Character string specifying the path to normalized expression matrix
+#'   RDS file for Hu2025 cohort (samples as columns, genes as rows).
+#'   Default: "../results/CellFie_Hu2025/Pdat2.RDS".
+#'
+#' @param metaHu_path Character string specifying the path to sample metadata RDS file
+#'   for Hu2025 cohort (must contain Patient, Condition, Cancer_type columns).
+#'   Default: "../results/CellFie_Hu2025/data/Hu2025/Meta_hu2025.RDS".
+#'
+#' @param NdatZhou_path Character string specifying the path to normalized expression matrix
+#'   RDS file for Zhou2020 cohort.
+#'   Default: "../results/CellFie_Zhou2020/Pdat2.RDS".
+#'
+#' @param metaZhou_path Character string specifying the path to sample metadata RDS file
+#'   for Zhou2020 cohort.
+#'   Default: "../results/CellFie_Zhou2020/data/Zhou2020/meta.RDS".
+#'
+#' @details
+#' The function performs the following workflow:
+#' \enumerate{
+#'   \item **System Extraction**: 
+#'     \itemize{
+#'       \item Loads CellFie task information for each cohort from specified paths
+#'       \item Filters tasks to extract only those belonging to the specified system
+#'       \item Removes duplicate entries and saves system task information as RDS and XLSX files
+#'       \item Maps entrez gene IDs to gene symbols using mygene service (via getSystem)
+#'     }
+#'   \item **Data Preparation**:
+#'     \itemize{
+#'       \item Loads normalized expression data and sample metadata from specified paths
+#'       \item Deduplicates genes (keeps first occurrence)
+#'       \item Filters genes to include only those associated with system tasks
+#'       \item Identifies paired samples (same patient with multiple conditions)
+#'     }
+#'   \item **Paired Differential Analysis**:
+#'     \itemize{
+#'       \item Runs paired limma t-tests for each cancer type within each cohort
+#'       \item Only cancer types with >4 paired samples and 2+ conditions are analyzed
+#'       \item Tests: limma with paired design (Patient as blocking factor)
+#'       \item Maps entrez gene IDs to gene symbols for interpretability
+#'     }
+#'   \item **Result Consolidation**:
+#'     \itemize{
+#'       \item Saves system task information (RDS and XLSX) for each cohort
+#'       \item Saves limma results (RDS and XLSX) for each cohort
+#'       \item Exports metadata (RDS) for reproducibility
+#'       \item Returns consolidated list with all results
+#'     }
+#' }
+#' Flexible path parameters allow easy adaptation to different project structures and 
+#' alternative CellFie outputs. Missing data is handled gracefully with NA results for 
+#' cancer types not meeting analysis criteria.
+#'
+#' @importFrom dplyr filter mutate select %>%
+#' @importFrom tibble column_to_rownames rownames_to_column
+#' @importFrom openxlsx write.xlsx
+#'
+#' @return A named list containing:
+#'   \itemize{
+#'     \item `limma_rslt_listHu`: Named list of limma results for each cancer type 
+#'       in Hu2025 cohort (names = cancer types)
+#'     \item `limma_rslt_listZhou`: Named list of limma results for each cancer type 
+#'       in Zhou2020 cohort
+#'     \item `systemHu`: Extracted system task information for Hu2025 (data frame with 
+#'       gene associations and symbols)
+#'     \item `systemZhou`: Extracted system task information for Zhou2020
+#'   }
+#'   Each element in the limma results lists contains a data frame with:
+#'   \itemize{
+#'     \item `Feature`: Gene symbol (human-readable identifier)
+#'     \item `EntrezID`: Original entrez gene ID (row name from expression matrix)
+#'     \item `logFC`: log2 fold-change (tumor vs. normal)
+#'     \item `AveExpr`: Average expression level across samples
+#'     \item `t`: t-statistic from paired limma test
+#'     \item `P.Value`: Unadjusted p-value
+#'     \item `adj.P.Val`: Adjusted p-value (FDR-corrected)
+#'   }
+#'
+#' @section Output Files:
+#' Creates output files in `outDirHu` and `outDirZhou`:
+#'   \itemize{
+#'     \item `systemTaskInfoHu.RDS/XLSX`: System task information for Hu2025
+#'     \item `systemTaskInfoZhou.RDS/XLSX`: System task information for Zhou2020
+#'     \item `limma_rslt_listHu.RDS/XLSX`: Differential analysis results for Hu2025
+#'     \item `limma_rslt_listZhou.RDS/XLSX`: Differential analysis results for Zhou2020
+#'     \item `metaHu.RDS`: Sample metadata for Hu2025 (copy from source)
+#'     \item `metaZhou.RDS`: Sample metadata for Zhou2020 (copy from source)
+#'   }
+#'
+#' @section Data Requirements:
+#' Metadata tables must contain:
+#'   \itemize{
+#'     \item `sample.submitter_id` or `sample_id`: Sample/column identifier
+#'     \item `Condition` or `sample_type`: Sample type (typically "Solid Tissue Normal" vs. "Primary Tumor")
+#'     \item `Patient`: Patient identifier for pairing
+#'     \item `Cancer_type`: Cancer type classification
+#'   }
+#' Expression matrices should have:
+#'   \itemize{
+#'     \item "genes" column with gene identifiers
+#'     \item Sample identifiers matching metadata
+#'   }
+#'
+#' @examples
+#' \dontrun{
+#'   # Analyze lipid metabolism system with default paths
+#'   results <- systemDiffAnalysis(
+#'     System = "LIPIDS METABOLISM",
+#'     outDirHu = "./results/SystemAnalysis_Hu/",
+#'     outDirZhou = "./results/SystemAnalysis_Zhou/"
+#'   )
+#'   
+#'   # Analyze with custom data paths
+#'   results <- systemDiffAnalysis(
+#'     System = "ENERGY METABOLISM",
+#'     outDirHu = "./analysis/energy_hu/",
+#'     outDirZhou = "./analysis/energy_zhou/",
+#'     taskInfo2_path = "/custom/path/taskInfo.RDS",
+#'     NdatHu_path = "/custom/path/expression_data.RDS"
+#'   )
+#'   
+#'   # Extract and use results
+#'   hu_results <- results$limma_rslt_listHu
+#'   zhou_results <- results$limma_rslt_listZhou
+#'   
+#'   # Visualize or perform downstream analysis
+#'   visualizeDiffFeatures(limma_rslt = hu_results, taskInfo = results$systemHu)
+#' }
+#'
+#' @export
+
 systemDiffAnalysis = function(
     System="LIPIDS METABOLISM",
-    outDirHu, outDirZhou){
+    outDirHu, outDirZhou,
+    taskInfo2_path = "../results/CellFie_Hu2025/CellFieOut/taskInfo.RDS",
+    detailScoring_new_path2 = "../results/CellFie_Zhou2020/CellFieOut/all/detailScoring_new.csv",
+    NdatHu_path = "../results/CellFie_Hu2025/Pdat2.RDS",
+    metaHu_path = "../results/CellFie_Hu2025/data/Hu2025/Meta_hu2025.RDS",
+    NdatZhou_path = "../results/CellFie_Zhou2020/Pdat2.RDS",
+    metaZhou_path = "../results/CellFie_Zhou2020/data/Zhou2020/meta.RDS"){
     print("Extract the specific METABOLISM genes ...")
     # Hu2025
-    OUTDIR = "../results/CellFie_Hu2025/"
-    taskInfo2 = readRDS(paste0(OUTDIR, "/CellFieOut/taskInfo.RDS"))
+    taskInfo2 = readRDS(taskInfo2_path)
     systemHu = getSystem(taskInfo2, System=System)
     systemHu = systemHu %>% unique()
     saveRDS(systemHu, paste0(outDirHu, "/systemTaskInfoHu.RDS"))
@@ -2375,9 +3045,8 @@ systemDiffAnalysis = function(
     gc()
 
     # Zhou2020
-    OUTDIR = "../results/CellFie_Zhou2020/" #############
     taskInfo2 = 
-        read.csv(paste0(OUTDIR, "/CellFieOut/all/detailScoring_new.csv"), sep="\t", header=TRUE) ############
+        read.csv(detailScoring_new_path2, sep="\t", header=TRUE) 
     head(taskInfo2)
     systemZhou = getSystem(taskInfo2, System=System)
     systemZhou = systemZhou %>% unique()
@@ -2388,10 +3057,9 @@ systemDiffAnalysis = function(
     gc()
 
     print("Paired differential analysis ... ")
-    OUTDIR = "../results/CellFie_Hu2025/"
-    NdatHu = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))   #############
-    systemHu = readRDS(paste0(outDirHu, "/systemTaskInfoHu.RDS")) ##############
-    metaHu = readRDS(paste0(OUTDIR, "/data/Hu2025/Meta_hu2025.RDS")) ##############
+    NdatHu = readRDS(NdatHu_path)  
+    systemHu = readRDS(paste0(outDirHu, "/systemTaskInfoHu.RDS")) 
+    metaHu = readRDS(metaHu_path) 
     saveRDS(metaHu, paste0(outDirHu, "/metaHu.RDS"))
 
     NdatHu = NdatHu[!duplicated(NdatHu$genes),]
@@ -2431,14 +3099,10 @@ systemDiffAnalysis = function(
         limma_rslt_listHu, 
         file = paste0(outDirHu, "limma_reslut.xlsx"))
 
-    OUTDIR = "../results/CellFie_Zhou2020/"  #############
-    NdatZhou = readRDS(paste0(OUTDIR, "/Pdat2.RDS"))  #############
-    systemZhou = readRDS(paste0(outDirZhou, "/systemTaskInfoZhou.RDS"))  #############
-    metaZhou = readRDS(paste0(OUTDIR,"/data/Zhou2020/meta.RDS"))   #############
+    NdatZhou = readRDS(NdatZhou_path)  
+    systemZhou = readRDS(paste0(outDirZhou, "/systemTaskInfoZhou.RDS")) 
+    metaZhou = readRDS(metaZhou_path)
     saveRDS(metaZhou, paste0(outDirZhou, "/metaZhou.RDS"))
-
-    sum(metaZhou$Sample %in% colnames(NdatZhou))
-    sum(colnames(NdatZhou) %in% metaZhou$Sample)
 
     NdatZhou = NdatZhou[!duplicated(NdatZhou$genes),]
     rownames(NdatZhou) = NULL
@@ -2487,6 +3151,84 @@ systemDiffAnalysis = function(
 
 
 
+
+
+#' @title Create Effect Size Boxplot for Metabolic Systems
+#'
+#' @description
+#' Generates a combined violin and boxplot showing the distribution of differential
+#' expression effect sizes (logFC, t-statistics, or other metrics) aggregated by
+#' metabolic system across all features within a dataset. Systems are ordered by
+#' median effect size, and extreme values are winsorized to improve visualization.
+#' Useful for comparing metabolic dysregulation magnitude across different pathways.
+#'
+#' @param rslt_lists A named list of results from \code{systemDiffAnalysis()} or
+#'   similar pipeline. Each element represents a metabolic system and contains nested
+#'   lists with elements named "limma_rslt_listHu" or "limma_rslt_listZhou" 
+#'   (depending on dataset). Each inner list contains differential expression results
+#'   for one or more cancer types, with each element containing a data frame with
+#'   columns `Feature` and the effect statistic (e.g., `logFC`, `t`).
+#'
+#' @param dataset Character string specifying which dataset to use: "Hu" (selects
+#'   "limma_rslt_listHu") or "Zhou" (selects "limma_rslt_listZhou").
+#'   Default: "Hu".
+#'
+#' @param effect.statistic Character string naming the column in differential
+#'   expression results to use as the effect size metric (e.g., "logFC", "t",
+#'   "AveExpr"). Default: "logFC".
+#'
+#' @param winsorize.quantil Numeric. Probability level for symmetrical winsorization
+#'   of extreme effect values at both tails (e.g., 0.05 clips at 5th and 95th
+#'   percentiles). Reduces extreme value influence on visualization. Default: 0.05.
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Selects the appropriate dataset's limma results based on the `dataset` parameter
+#'   \item Extracts effect sizes from each system and cancer type
+#'   \item Aggregates effects across all features and cancer types within each system
+#'   \item Orders systems by median effect size (ascending)
+#'   \item Winsorizes extreme values to specified quantiles
+#'   \item Creates a combined visualization with:
+#'     \itemize{
+#'       \item X-axis: metabolic systems (ordered by median effect)
+#'       \item Y-axis: effect sizes (logFC or specified statistic)
+#'       \item Violin plots (orange) showing full distribution
+#'       \item Overlaid boxplots (grey) showing quartiles
+#'       \item Red dashed line at zero for reference
+#'     }
+#'   \item Saves PDF output (hard-coded to `outDirSummary` global variable)
+#' }
+#' System names are simplified by replacing "METABOLISM" with "M." for compact
+#' axis labels.
+#'
+#' @importFrom dplyr select mutate group_by summarize arrange pull %>% 
+#' @importFrom ggplot2 ggplot aes geom_violin geom_boxplot labs geom_hline 
+#'   theme_minimal theme element_text
+#'
+#' @return Invisibly returns NULL. Primary side effect is creation of a PDF file
+#'   in the global `outDirSummary` directory named:
+#'   "effectSize_<effect.statistic>_system_<dataset>.pdf"
+#'
+#' @section Note:
+#' This function depends on the global variable `outDirSummary` for output path.
+#' Ensure this variable is defined in the calling environment.
+#'
+#' @examples
+#' \dontrun{
+#'   # Create effect size boxplot for Hu dataset
+#'   outDirSummary <- "./results/Summary/"
+#'   results <- systemDiffAnalysis(System = "LIPIDS METABOLISM", 
+#'                                 outDirHu = "./hu/", outDirZhou = "./zhou/")
+#'   
+#'   makeEffectSizeBoxplot_system(results, dataset = "Hu", effect.statistic = "logFC")
+#'   
+#'   # Also works with t-statistics
+#'   makeEffectSizeBoxplot_system(results, dataset = "Zhou", effect.statistic = "t")
+#' }
+#'
+#' @export
+
 makeEffectSizeBoxplot_system = function(
     rslt_lists, dataset="Hu", 
     effect.statistic="logFC",
@@ -2531,6 +3273,84 @@ makeEffectSizeBoxplot_system = function(
 
 
 
+
+
+#' @title Create Effect Size Boxplot for Cancer Types
+#'
+#' @description
+#' Generates a boxplot showing the distribution of differential expression effect sizes 
+#' (logFC, t-statistics, or other metrics) across different cancer types. Effects are 
+#' aggregated across all metabolic systems and features within each cancer type. Cancer 
+#' types are ordered by median effect size, and extreme values are winsorized to improve 
+#' visualization. Useful for comparing overall metabolic dysregulation magnitude between 
+#' different cancer types.
+#'
+#' @param rslt_lists A named list of results from \code{systemDiffAnalysis()} or similar 
+#'   pipeline. Each element represents a metabolic system and contains nested lists with 
+#'   elements named "limma_rslt_listHu" or "limma_rslt_listZhou" (depending on dataset). 
+#'   Each inner list contains differential expression results for multiple cancer types.
+#'   The function extracts cancer type names from the first system's results.
+#'
+#' @param dataset Character string specifying which dataset to use: "Hu" (selects 
+#'   "limma_rslt_listHu") or "Zhou" (selects "limma_rslt_listZhou"). 
+#'   Default: "Hu".
+#'
+#' @param effect.statistic Character string naming the column in differential 
+#'   expression results to use as the effect size metric (e.g., "logFC", "t", 
+#'   "AveExpr"). Default: "logFC".
+#'
+#' @param winsorize.quantil Numeric. Probability level for symmetrical winsorization 
+#'   of extreme effect values at both tails (e.g., 0.05 clips at 5th and 95th 
+#'   percentiles). Reduces extreme value influence on visualization. Default: 0.05.
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Selects the appropriate dataset's limma results based on the `dataset` parameter
+#'   \item Extracts cancer type names from the first system's results
+#'   \item Aggregates effect sizes across all metabolic systems and features for each cancer type
+#'   \item Orders cancer types by median effect size (ascending)
+#'   \item Winsorizes extreme values to specified quantiles
+#'   \item Dynamically scales PDF width based on number of cancer types
+#'   \item Creates boxplot with:
+#'     \itemize{
+#'       \item X-axis: cancer types (ordered by median effect)
+#'       \item Y-axis: effect sizes (logFC or specified statistic)
+#'       \item Orange boxplots showing quartile distributions
+#'       \item Red dashed line at zero for reference
+#'     }
+#'   \item Saves PDF output (hard-coded to `outDirSummary` global variable)
+#' }
+#' Unlike \code{makeEffectSizeBoxplot_system()}, this function aggregates across
+#' all systems to show cancer-specific metabolic dysregulation patterns.
+#'
+#' @importFrom dplyr select mutate group_by summarize arrange pull %>%
+#' @importFrom ggplot2 ggplot aes geom_boxplot labs geom_hline theme_minimal theme element_text
+#'
+#' @return Invisibly returns NULL. Primary side effect is creation of a PDF file 
+#'   in the global `outDirSummary` directory named: 
+#'   "effectSize_<effect.statistic>_Cancer_<dataset>.pdf"
+#'
+#' @section Note:
+#' This function depends on the global variable `outDirSummary` for output path. 
+#' Ensure this variable is defined in the calling environment. PDF width is 
+#' automatically scaled as 0.15 inches per cancer type plus 1 inch base width.
+#'
+#' @examples
+#' \dontrun{
+#'   # Create effect size boxplot for cancer types in Hu dataset
+#'   outDirSummary <- "./results/Summary/"
+#'   results <- systemDiffAnalysis(System = "LIPIDS METABOLISM", 
+#'                                 outDirHu = "./hu/", outDirZhou = "./zhou/")
+#'   
+#'   makeEffectSizeBoxplot_cancer(results, dataset = "Hu", effect.statistic = "logFC")
+#'   
+#'   # Also works with t-statistics
+#'   makeEffectSizeBoxplot_cancer(results, dataset = "Zhou", effect.statistic = "t")
+#' }
+#'
+#' @export
+
 makeEffectSizeBoxplot_cancer = function(
     rslt_lists, dataset="Hu", 
     effect.statistic="logFC",
@@ -2574,6 +3394,91 @@ makeEffectSizeBoxplot_cancer = function(
     dev.off()
 }
 
+
+
+
+#' @title Create Expression Level Boxplot for Metabolic Systems
+#'
+#' @description
+#' Generates a combined violin and boxplot showing the distribution of average feature 
+#' expression levels (genes, metabolites, or tasks) aggregated by metabolic system. 
+#' Features are extracted from differential expression results and their mean expression 
+#' values are computed from normalized expression data. Systems are ordered by median 
+#' expression level, and extreme values are winsorized. Useful for assessing baseline 
+#' abundance/activity of different metabolic systems in the dataset.
+#'
+#' @param NormExpr A data frame or matrix of normalized expression values with gene/feature 
+#'   identifiers in a column named "genes" (which will be converted to row names) and 
+#'   samples as columns. Typically output from normalization pipelines. Can include 
+#'   duplicate gene entries, which are automatically deduplicated (first occurrence kept).
+#'
+#' @param rslt_lists A named list of results from \code{systemDiffAnalysis()} or similar 
+#'   pipeline. Each element represents a metabolic system and contains nested lists with 
+#'   elements named "limma_rslt_listHu" or "limma_rslt_listZhou" (depending on dataset). 
+#'   Each inner element should contain a data frame with columns `Feature`, `EntrezID`, 
+#'   and other limma outputs.
+#'
+#' @param dataset Character string specifying which dataset to use: "Hu" (selects 
+#'   "limma_rslt_listHu") or "Zhou" (selects "limma_rslt_listZhou"). 
+#'   Default: "Hu".
+#'
+#' @param winsorize.quantil Numeric. Probability level for symmetrical winsorization 
+#'   of extreme mean expression values at both tails (e.g., 0.05 clips at 5th and 95th 
+#'   percentiles). Reduces extreme value influence on visualization. Default: 0.05.
+#'
+#' @param outDirSummary Character string specifying the output directory where the PDF 
+#'   will be saved. Must be a valid, writable directory path.
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Deduplicates genes in the expression matrix (keeps first occurrence)
+#'   \item Converts gene column to row names
+#'   \item Selects the appropriate dataset's differential expression results
+#'   \item For each system and cancer type combination:
+#'     \itemize{
+#'       \item Extracts feature IDs from limma results
+#'       \item Subsets normalized expression data to these features
+#'       \item Computes mean expression across all samples for each feature
+#'       \item Maps entrez IDs to feature symbols
+#'     }
+#'   \item Aggregates mean expression values across all features and cancer types per system
+#'   \item Orders systems by median expression level (ascending)
+#'   \item Winsorizes extreme values to specified quantiles
+#'   \item Creates combined visualization with:
+#'     \itemize{
+#'       \item X-axis: metabolic systems (ordered by median expression)
+#'       \item Y-axis: mean feature expression levels
+#'       \item Orange violin plots showing full distribution
+#'       \item Overlaid boxplots for quartile visualization
+#'     }
+#'   \item Saves PDF output to `outDirSummary`
+#' }
+#' System names are simplified by replacing "METABOLISM" with "M." for compact axis labels.
+#'
+#' @importFrom dplyr select mutate group_by summarize arrange pull %>%
+#' @importFrom tibble column_to_rownames rownames_to_column
+#' @importFrom ggplot2 ggplot aes geom_violin geom_boxplot labs theme_minimal theme element_text
+#'
+#' @return Invisibly returns NULL. Primary side effect is creation of a PDF file 
+#'   in `outDirSummary` named "FeatureAbundance_system_<dataset>.pdf"
+#'
+#' @examples
+#' \dontrun{
+#'   # Create expression level boxplot for systems in Hu dataset
+#'   outDirSummary <- "./results/Summary/"
+#'   results <- systemDiffAnalysis(System = "LIPIDS METABOLISM", 
+#'                                 outDirHu = "./hu/", outDirZhou = "./zhou/")
+#'   
+#'   # Assume NdatHu is normalized expression data
+#'   makeExprBoxplot_system(NormExpr = NdatHu, rslt_lists = results, 
+#'                          dataset = "Hu", outDirSummary = outDirSummary)
+#'   
+#'   makeExprBoxplot_system(NormExpr = NdatZhou, rslt_lists = results, 
+#'                          dataset = "Zhou", outDirSummary = outDirSummary)
+#' }
+#'
+#' @export
 
 makeExprBoxplot_system = function(
     NormExpr=NdatHu, 
@@ -2623,6 +3528,7 @@ makeExprBoxplot_system = function(
             axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0)))
     dev.off()
 }
+
 
 #' @param framework this can be either "CellFie" or "GSVA"
 #' 
@@ -2739,10 +3645,90 @@ getSystemNetwork = function(
 
 
 
+#' @title Survival Analysis via Cox Proportional Hazards Regression
+#'
+#' @description
+#' Performs univariate and multivariable Cox proportional hazards regression to assess 
+#' the association between metabolic pathway activity (GSVA scores) and patient survival. 
+#' For each pathway, the function fits Cox models with progressively simpler covariate 
+#' structures (from full model including stage to univariate models) and tests the 
+#' proportional hazards assumption. Results include hazard ratios, confidence intervals, 
+#' p-values, and adjusted p-values.
+#'
+#' @param meta A data frame containing patient metadata with required columns:
+#'   \itemize{
+#'     \item `sample.submitter_id`: Sample identifiers (must match column names in `GSVAscores`)
+#'     \item `vital_status`: Patient status ("Dead" or alive; used to code event indicator)
+#'     \item `days_to_death`: Days to death (numeric, may contain NA)
+#'     \item `days_to_last_follow_up`: Days to last follow-up (numeric, may contain NA)
+#'     \item `age_at_diagnosis`: Patient age at diagnosis (optional, used for covariate adjustment)
+#'     \item `gender`: Patient gender (optional, used for covariate adjustment)
+#'     \item `ajcc_pathologic_stage`: AJCC cancer stage (optional, used in full model)
+#'   }
+#'   Rows with missing survival time data are automatically excluded.
+#'
+#' @param GSVAscores A data frame or matrix containing GSVA pathway activity scores with:
+#'   \itemize{
+#'     \item First column named "Features": Pathway/feature identifiers
+#'     \item Remaining columns: Sample scores with column names matching `meta$sample.submitter_id`
+#'       (note: hyphens may be converted to periods in column names)
+#'   }
+#'   Each row represents one pathway; columns represent samples/patients.
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Filters metadata to include only patients with survival time data
+#'   \item Matches samples between metadata and GSVA scores
+#'   \item Creates survival object (Surv) from vital status and follow-up times
+#'   \item For each pathway:
+#'     \itemize{
+#'       \item Attempts to fit a full Cox model with pathway score + age + gender + stage
+#'       \item Falls back to progressively simpler models if fitting fails:
+#'         (pathway score + age + gender) → (pathway score + age) → (pathway score only)
+#'       \item Tests proportional hazards assumption using Schoenfeld residuals
+#'       \item Extracts hazard ratio (HR), 95% CI, and p-values
+#'     }
+#'   \item Applies false discovery rate (FDR) correction to p-values across all pathways
+#'   \item Returns consolidated results table sorted by pathway
+#' }
+#' Survival time is defined as days to death if available, otherwise days to last follow-up.
+#' Event indicator is 1 for deceased patients, 0 for censored (alive) patients.
+#'
+#' @importFrom survival Surv coxph cox.zph
+#' @importFrom dplyr mutate
+#'
+#' @return A data frame with one row per pathway containing:
+#'   \itemize{
+#'     \item `Feature`: Pathway identifier
+#'     \item `HR`: Hazard ratio (risk of event per unit increase in pathway score)
+#'     \item `CI_lower`: Lower bound of 95% confidence interval for HR
+#'     \item `CI_upper`: Upper bound of 95% confidence interval for HR
+#'     \item `p_value`: Unadjusted p-value from Cox model Wald test
+#'     \item `SchoenfieldResidualTest_pvalue`: p-value from proportional hazards assumption test
+#'     \item `padj`: False discovery rate (FDR)-adjusted p-value
+#'   }
+#'   HR > 1 indicates increased risk with higher pathway activity; HR < 1 indicates protective effect.
+#'   Rows with failed model fitting are included with NULL values for model parameters.
+#'
+#' @examples
+#' \dontrun{
+#'   # Load TCGA metadata and GSVA results
+#'   meta <- readRDS("TCGA_metadata.RDS")
+#'   gsva_scores <- readRDS("TCGA_GSVA_scores.RDS")
+#'   
+#'   # Perform Cox regression analysis
+#'   survival_results <- metabolicSurvival_coxreg(meta, gsva_scores)
+#'   
+#'   # Filter for significant pathways (FDR < 0.05)
+#'   sig_pathways <- survival_results[survival_results$padj < 0.05, ]
+#'   
+#'   # Visualize results
+#'   head(survival_results)
+#' }
+#'
+#' @export
 
-
-
-# Survival analysis
 metabolicSurvival_coxreg = function(meta, GSVAscores) {
     meta = meta[!(is.na(meta$days_to_death)&is.na(meta$days_to_last_follow_up)),]
     meta = meta[!is.na(meta$sample.submitter_id), ]
@@ -2823,6 +3809,103 @@ metabolicSurvival_coxreg = function(meta, GSVAscores) {
 
 
 
+#' @title Kaplan-Meier Survival Analysis with Log-Rank Test
+#'
+#' @description
+#' Performs Kaplan-Meier survival analysis stratifying patients by metabolic pathway 
+#' activity levels. Pathways are dichotomized into "High" and "Low" activity groups 
+#' using the 35th and 65th percentiles of GSVA scores (middle 30% excluded). The function 
+#' generates survival curves for each pathway, performs log-rank tests to assess 
+#' differences between groups, and saves PDF plots. Results include test statistics, 
+#' observed vs. expected events, and FDR-adjusted p-values.
+#'
+#' @param meta A data frame containing patient metadata with required columns:
+#'   \itemize{
+#'     \item `sample.submitter_id`: Sample identifiers (must match column names in `GSVAscores`)
+#'     \item `vital_status`: Patient status ("Dead" or alive; used to code event indicator)
+#'     \item `days_to_death`: Days to death (numeric, may contain NA)
+#'     \item `days_to_last_follow_up`: Days to last follow-up (numeric, may contain NA)
+#'   }
+#'   Rows with missing survival time data and missing sample IDs are automatically excluded.
+#'
+#' @param GSVAscores A data frame or matrix containing GSVA pathway activity scores with:
+#'   \itemize{
+#'     \item First column named "Features": Pathway/feature identifiers
+#'     \item Remaining columns: Sample scores with column names matching `meta$sample.submitter_id`
+#'       (note: hyphens may be converted to periods in column names)
+#'   }
+#'   Each row represents one pathway; columns represent samples/patients.
+#'
+#' @param outdir Character string specifying the output directory where Kaplan-Meier 
+#'   curve PDFs will be saved. Must be a valid, writable directory path.
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Filters metadata to include only patients with survival time data and matching sample IDs
+#'   \item Creates survival object (Surv) from vital status and follow-up times
+#'   \item For each pathway:
+#'     \itemize{
+#'       \item Dichotomizes pathway scores into "High" (≥65th percentile) and "Low" 
+#'         (≤35th percentile), excluding middle 30%
+#'       \item Fits Kaplan-Meier curves separately for each group
+#'       \item Performs log-rank test (survdiff) to compare survival between groups
+#'       \item Generates and saves survival curve plot with group-specific colors
+#'         (red for High, blue for Low activity)
+#'       \item Extracts test statistics: chi-square, degrees of freedom, p-value
+#'     }
+#'   \item Applies false discovery rate (FDR) correction to p-values across all pathways
+#'   \item Returns summary table with test results for all pathways
+#' }
+#' Survival time is defined as days to death if available, otherwise days to last follow-up.
+#' Event indicator is 1 for deceased patients, 0 for censored (alive) patients.
+#' 
+#' Two loops perform identical operations: the first generates plots only without storing 
+#' results, the second collects results table output.
+#'
+#' @importFrom survival Surv survfit survdiff
+#' @importFrom dplyr mutate
+#'
+#' @return A data frame with one row per pathway containing:
+#'   \itemize{
+#'     \item `Feature`: Pathway identifier
+#'     \item `survival_table`: Nested data frame with columns:
+#'       \itemize{
+#'         \item `group`: Group name ("High" or "Low")
+#'         \item `N`: Number of subjects per group
+#'         \item `Observed`: Observed number of events
+#'         \item `Expected`: Expected number of events under null hypothesis
+#'       }
+#'     \item `test_statistic`: Chi-square test statistic from log-rank test
+#'     \item `degrees_freedom`: Degrees of freedom (typically 1 for 2-group comparison)
+#'     \item `p_value`: Unadjusted p-value from log-rank test
+#'     \item `padj`: False discovery rate (FDR)-adjusted p-value
+#'   }
+#'   p-value < 0.05 indicates significant difference in survival between High and Low 
+#'   activity groups. Significant pathways may be prognostic biomarkers.
+#'
+#' @section Output Files:
+#' PDF files are saved in `outdir` with naming pattern: 
+#' "KaplanMeierCurves_<pathway_name>.pdf" where spaces and slashes are removed from 
+#' pathway names.
+#'
+#' @examples
+#' \dontrun{
+#'   # Load TCGA metadata and GSVA results
+#'   meta <- readRDS("TCGA_metadata.RDS")
+#'   gsva_scores <- readRDS("TCGA_GSVA_scores.RDS")
+#'   
+#'   # Perform Kaplan-Meier survival analysis
+#'   km_results <- metabolicSurvival_Kaplan_Meier(meta, gsva_scores, 
+#'                                                 outdir = "./plots/KaplanMeier/")
+#'   
+#'   # Filter for significant pathways (FDR < 0.05)
+#'   sig_pathways <- km_results[km_results$padj < 0.05, ]
+#'   
+#'   head(km_results)
+#' }
+#'
+#' @export
 
 metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
     meta = meta[!(is.na(meta$days_to_death)&is.na(meta$days_to_last_follow_up)),]
@@ -2982,12 +4065,108 @@ metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
 }
 
 
-visualizeDiffFeatures = function(
+
+#' @title Create Heatmap of Hazard Ratios from Survival Analysis
+#'
+#' @description
+#' Generates a comprehensive heatmap visualizing hazard ratios (HR) and their statistical 
+#' significance from Cox proportional hazards or Kaplan-Meier survival analysis across 
+#' multiple cancer types. Pathways are annotated by metabolic class and ordered by total 
+#' HR across cohorts. Significance is marked with asterisks (default: FDR < 0.1). 
+#' HR values are capped at ±3 for improved visualization. Useful for identifying 
+#' metabolic pathways with consistent or divergent prognostic associations.
+#'
+#' @param metabolicSur_rslts A named list of survival analysis results, with one element 
+#'   per cancer type. Each element should be a data frame containing:
+#'   \itemize{
+#'     \item `Feature`: Pathway identifier (gene set name)
+#'     \item `HR`: Hazard ratio from Cox model or Kaplan-Meier analysis
+#'     \item `p_value`: Unadjusted p-value
+#'     \item `padj`: Adjusted p-value (typically FDR-corrected)
+#'   }
+#'   List names become cohort/cancer type labels displayed on the heatmap x-axis.
+#'   Only pathways with p_value < 0.05 are included in visualization.
+#'
+#' @param kegg_metab_db_table A data frame containing pathway metadata with at least 
+#'   two columns:
+#'   \itemize{
+#'     \item `gs_name`: Pathway identifier (must match row names in survival results)
+#'     \item `class`: Metabolic class/category for row annotations
+#'   }
+#'   Used to annotate rows in the heatmap with metabolic classification and order pathways.
+#'
+#' @param outDir Character string specifying the output directory where the PDF heatmap 
+#'   will be saved. Must be a valid, writable directory path.
+#'
+#' @param w Numeric or NULL. Width of output PDF in inches. When NULL, automatically 
+#'   computed based on number of cancer types and pathway names. Default: NULL.
+#'
+#' @param h Numeric or NULL. Height of output PDF in inches. When NULL, automatically 
+#'   computed based on number of pathways and class label length. Default: NULL.
+#'
+#' @param pvalue_cutoff Numeric. Threshold for marking significant pathways with asterisks 
+#'   (uses padj column). Default: 0.1.
+#'
+#' @details
+#' The function:
+#' \enumerate{
+#'   \item Filters survival results to include only pathways with p_value < 0.05
+#'   \item Collects HR values across all cancer types into a wide-format matrix
+#'   \item Collects adjusted p-values in a parallel matrix for significance testing
+#'   \item Sorts pathways by total HR across cancer types (descending)
+#'   \item Retrieves pathway metadata and orders by metabolic class
+#'   \item Creates significance indicator matrix (asterisks for padj < pvalue_cutoff)
+#'   \item Clips HR values to ±3 range (winsorization) for visualization
+#'   \item Generates heatmap with:
+#'     \itemize{
+#'       \item Color gradient: blue (HR < 1, protective) → white (HR = 1, neutral) → red (HR > 1, risk)
+#'       \item Asterisks overlaid for significant pathways
+#'       \item Row annotations showing metabolic class/pathway category
+#'       \item No row clustering (maintained metabolic class ordering)
+#'       \item Dynamic dimension scaling based on data size
+#'     }
+#'   \item Saves PDF output to `outDir`
+#' }
+#' HR > 1 indicates increased risk of death with higher pathway activity (hazard).
+#' HR < 1 indicates decreased risk (protective effect).
+#' Pathways consistently above/below HR = 1 across multiple cohorts suggest robust 
+#' prognostic biomarkers.
+#'
+#' @importFrom dplyr select full_join filter arrange
+#' @importFrom tibble column_to_rownames
+#' @importFrom pheatmap pheatmap
+#' @importFrom colorRampPalette
+#'
+#' @return Invisibly returns NULL. Primary side effect is creation of a PDF file 
+#'   in `outDir` named "HR_survival.pdf" containing the hazard ratio heatmap.
+#'
+#' @examples
+#' \dontrun{
+#'   # Load survival analysis results
+#'   cox_results <- readRDS("Cox_regression_results.RDS")  # list of data frames by cancer type
+#'   kegg_db <- readRDS("KEGG_metabolic_database.RDS")
+#'   
+#'   # Create hazard ratio heatmap
+#'   visualizeDiffFeatures_sur(metabolicSur_rslts = cox_results,
+#'                             kegg_metab_db_table = kegg_db,
+#'                             outDir = "./plots/",
+#'                             pvalue_cutoff = 0.05)
+#'   
+#'   # With custom dimensions
+#'   visualizeDiffFeatures_sur(metabolicSur_rslts = cox_results,
+#'                             kegg_metab_db_table = kegg_db,
+#'                             outDir = "./plots/",
+#'                             w = 8, h = 12,
+#'                             pvalue_cutoff = 0.1)
+#' }
+#'
+#' @export
+
+visualizeDiffFeatures_sur = function(
     metabolicSur_rslts=metabolicSur_rslts, 
     kegg_metab_db_table = kegg_metab_dbs$kegg_metab_db_table,
     outDir, w=NULL, h=NULL,
     pvalue_cutoff=0.1) {
-
     metabolicSur_rslts_dat = lapply(names(metabolicSur_rslts), function(c) {
         cancer = metabolicSur_rslts[[c]]
         cancer = cancer[cancer$p_value <0.05, ]
@@ -3052,9 +4231,7 @@ visualizeDiffFeatures = function(
     if (is.null(h)) {
         h = 0.12*nrow(logFCdat)+0.05*max(nchar(colnames(ann_row))) +2.5
     }
-    pdf(paste0(outDir, "/HR_survival.pdf"),
-        h=h, w=w)
+    pdf(paste0(outDir, "/HR_survival.pdf"), h=h, w=w)
     print(p1)
     dev.off()
 }
-
