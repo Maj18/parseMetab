@@ -19,6 +19,7 @@ Encoding: UTF-8
 Language: en-US
 URL: https://github.com/Maj18/parseMetab
 BugReports: https://github.com/Maj18/parseMetab/issues
+DOI: 10.5281/zenodo.18615953
 Imports:
     dplyr (>= 1.0.0),
     ggplot2 (>= 3.3.0),

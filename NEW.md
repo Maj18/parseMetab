@@ -4,6 +4,8 @@
 
 🎉 **Major Release - Production Ready**
 
+**DOI**: [10.5281/zenodo.18615953](https://doi.org/10.5281/zenodo.18615953)
+
 ### New Features
 - **Co-expression Network Analysis** (`getSystemNetwork()`) - Construct and visualize metabolic system-specific co-expression networks with hub gene identification
 - **Survival Analysis Integration** - Kaplan-Meier and Cox proportional hazards regression for survival studies
