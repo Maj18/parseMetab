@@ -68,7 +68,7 @@ remotes::install_github("Maj18/parseMetab", dependencies = TRUE)
 A pre-configured Docker container with parseMetab and all dependencies is available:
 
 ```bash
-docker pull yuanli202004/cancer:v2.0.1
+docker pull yuanli202004/cancer:v2.0.2
 ```
 
 ### Local Development Installation
