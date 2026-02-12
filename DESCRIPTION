@@ -1,28 +1,49 @@
 Package: parseMetab
-Version: 0.1.0
+Version: 1.0.0
 Type: Package
-Title: Leverage proteomics/transcriptomics data, infer metabolic acitivity, perform differential analysis, and visualization.
-Date: 2026-01-06
-Author: YUAN LI
-Maintainer: YUAN LI <yuan.li@nbis.se>
-Description: Provides utilities to parse proteomics/transcriptomics data, infers sample-wise metabolic activities using either CellFie or KEGG metabolic pathway-based GSVA analysis. Also runs limma (optionally paired) differential testing on metabolic activities and produces summary tables and visualizations.
-License: GPL-3
+Title: Metabolic Activity Inference and Analysis for Omics Data
+Description: Comprehensive utilities for inferring and analyzing metabolic activities from 
+    proteomics and transcriptomics data. Supports multiple metabolic activity scoring approaches 
+    (CellFie and pathway-based GSVA), performs limma-based differential testing on inferred 
+    activities, and generates publication-ready visualizations. Enables coexpression network 
+    analysis on genes and proteins within metabolic classes. Features include multi-cohort 
+    analysis pipelines, flexible experimental designs (including paired studies), KEGG pathway 
+    integration, survival analysis capabilities, and a comprehensive suite of plotting functions 
+    (dotplots, volcano plots, heatmaps, boxplots, circular barplots, and more) optimized for 
+    multi-cohort and cross-cancer studies.
+Authors@R: person("Yuan", "Li", email = "yuan.li@nbis.se", role = c("aut", "cre"))
+Maintainer: Yuan Li <yuan.li@nbis.se>
+License: GPL (>= 3)
+Date: 2026-02-12
 Encoding: UTF-8
+Language: en-US
+URL: https://github.com/Maj18/parseMetab
+BugReports: https://github.com/Maj18/parseMetab/issues
 Imports:
-    dplyr,
-    ggplot2,
-    igraph,
-    stringr,
-    tidyr,
-    ggraph,
-    tibble,
-    limma,
-    edgeR,
-    GSVA,
-    KEGGREST,
-    viridis,
-    matrixStats,
-    ggh4x,
-    pheatmap,
-    openxlsx
+    dplyr (>= 1.0.0),
+    ggplot2 (>= 3.3.0),
+    igraph (>= 1.2.0),
+    stringr (>= 1.4.0),
+    tidyr (>= 1.1.0),
+    ggraph (>= 2.0.0),
+    tibble (>= 3.0.0),
+    limma (>= 3.46.0),
+    edgeR (>= 3.32.0),
+    GSVA (>= 1.38.0),
+    KEGGREST (>= 1.30.0),
+    viridis (>= 0.5.1),
+    matrixStats (>= 0.58.0),
+    ggh4x (>= 0.1.0),
+    pheatmap (>= 1.0.0),
+    openxlsx (>= 4.2.0),
+    stats,
+    utils,
+    methods
+Suggests:
+    devtools (>= 2.3.0),
+    roxygen2 (>= 7.1.0),
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
 RoxygenNote: 7.3.2

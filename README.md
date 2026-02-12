@@ -1,9 +1,10 @@
-# parseMetab <img src="https://via.placeholder.com/50" align="right" alt="parseMetab logo" />
+# parseMetab <img src="man/figures/parseMetab_logo.svg" align="right" alt="parseMetab logo" width="100" />
 
 **Metabolic activity inference and analysis for omics data**
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
-![License](https://img.shields.io/badge/license-GPL--3-green)
+![Version](https://img.shields.io/badge/version-1.0.0-brightgreen)
+![License](https://img.shields.io/badge/license-GPL%20%28%3E%3D%203%29-green)
+![Status](https://img.shields.io/badge/status-active-success)
 
 ## Overview
 
@@ -12,6 +13,8 @@ parseMetab is an R package for inferring and analyzing metabolic activities from
 - **Data parsing**: Convert CellFie outputs and pathway mappings into tidy, analysis-ready tables
 - **Activity scoring**: Infer sample-wise metabolic activities using CellFie or pathway-based GSVA approaches
 - **Differential analysis**: Perform limma-based differential testing on inferred metabolic activities
+- **Network analysis**: Conduct coexpression network analysis on genes and proteins within metabolic classes
+- **Survival integration**: Perform Kaplan-Meier and Cox proportional hazards regression with metabolic activities
 - **Multi-cohort support**: Convenience wrappers for analyzing multiple cohorts (e.g., TCGA) simultaneously
 - **Publication-ready visualizations**: Dotplots, volcano plots, heatmaps, circular plots, and more
 
@@ -20,8 +23,10 @@ parseMetab is an R package for inferring and analyzing metabolic activities from
 ✨ **Core Functionality**
 - Parse CellFie outputs and metabolic pathway mappings into standardized data frames
 - Support for both CellFie and GSVA-based metabolic activity scoring
-- Flexible limma-based differential testing (including paired designs)
+- Flexible limma-based differential testing (including paired experimental designs)
 - KEGG pathway integration for metabolic pathway analysis
+- Coexpression network analysis within metabolic classes
+- Survival analysis capabilities (Kaplan-Meier, Cox regression)
 
 📊 **Visualization Suite**
 - Dotplots for multi-cohort pathway comparisons
@@ -239,12 +244,12 @@ If you use parseMetab in your research, please cite:
 
 ```
 Yuan Li (2026). parseMetab: Metabolic activity inference and analysis for omics data. 
-R package version 0.1.0
+R package version 1.0.0. https://github.com/Maj18/parseMetab
 ```
 
 ## License
 
-This project is licensed under the GPL-3 License. See [DESCRIPTION](DESCRIPTION) for details.
+This project is licensed under the GPL (>= 3) License. See [DESCRIPTION](DESCRIPTION) for details.
 
 ## Contact & Support
 
