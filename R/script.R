@@ -506,7 +506,7 @@ getdb_metabolism = function(databaseDIR) {
  #' Class name standardization helps create more readable axis labels
  #' across different metabolic categories.
  #'
- #' @importFrom dplyr %>% select unique group_by summarise arrange pull mutate
+ #' @importFrom dplyr %>% select group_by summarise arrange pull mutate
  #' @importFrom ggplot2 ggplot aes geom_boxplot labs theme_minimal theme element_text
  #' @importFrom stringr str_to_title
  #' @importFrom cowplot plot_grid
@@ -750,7 +750,7 @@ getdb_metabolism = function(databaseDIR) {
 #'
 #' @importFrom dplyr %>% left_join mutate select filter pull
 #' @importFrom tibble rownames_to_column
-#' @importFrom ggplot2 ggplot aes aes_string geom_point facet_nested scale_shape_manual
+#' @importFrom ggplot2 ggplot aes aes_string geom_point scale_shape_manual
 #'   ggtitle ylab labs scale_color_gradient2 scale_size theme_bw scale_y_discrete guides
 #'   guide_legend element_blank element_text unit theme
 #' @importFrom stringr str_wrap str_to_title
@@ -2354,7 +2354,7 @@ SigNrBarplot = function(
 #' Violin plots effectively display the full distribution of task effects 
 #' within each system, revealing both typical and extreme dysregulation patterns.
 #'
-#' @importFrom dplyr %>% left_join select unique group_by summarise arrange pull mutate
+#' @importFrom dplyr %>% left_join select group_by summarise arrange pull mutate
 #' @importFrom tibble rownames_to_column
 #' @importFrom ggplot2 ggplot aes geom_violin geom_boxplot position_dodge 
 #'   scale_fill_manual labs theme_minimal theme element_text
@@ -2772,7 +2772,6 @@ getSystem = function(taskInfo2, System) {
 #' @importFrom tibble column_to_rownames
 #' @importFrom tidyr pivot_wider
 #' @importFrom pheatmap pheatmap
-#' @importFrom colorRampPalette
 #'
 #' @return Invisibly returns the heatmap object. Primary side effect is creation
 #'   of a PDF file in `outdir` containing the feature expression heatmap.
@@ -3529,9 +3528,97 @@ makeExprBoxplot_system = function(
     dev.off()
 }
 
-
-#' @param framework this can be either "CellFie" or "GSVA"
-#' 
+ 
+#' @title Build and Visualize Co-expression Network for Metabolic System
+#'
+#' @description
+#' Constructs a co-expression network for genes/proteins associated with a specific 
+#' metabolic system or pathway. The function filters high-correlation gene pairs 
+#' (Spearman correlation > 0.6), identifies hub genes based on network connectivity 
+#' (hubness), and generates a publication-ready network visualization with node sizes 
+#' scaled by hubness and hub nodes highlighted distinctly.
+#'
+#' @param dat A data frame or matrix of expression data with genes/proteins as rows 
+#' and samples as columns. Row names should contain gene identifiers.
+#' Default: \code{NdatHu}
+#'
+#' @param taskInfo A data frame containing task/metabolic system annotations. 
+#' Default: \code{taskInfo2}
+#'
+#' @param System A character string specifying the metabolic system name 
+#' (e.g., "Glycolysis", "TCA Cycle"). Required.
+#'
+#' @param outdir A character string specifying the output directory path where 
+#' the network visualization PDF will be saved. The function will create 
+#' a \code{Network/} subdirectory if it doesn't exist.
+#'
+#' @param suffix A character string to append to the output file name for 
+#' distinguishing multiple runs. Default: \code{""}
+#'
+#' @param framework A character string specifying the analysis framework. 
+#' Options: \code{"CellFie"} (default) or KEGG-based analysis.
+#' Default: \code{"CellFie"}
+#'
+#' @param keggTable An optional data frame containing KEGG pathway mappings 
+#' with columns \code{class} (pathway/system name) and \code{gene_symbol}. 
+#' If \code{NULL} and framework is not "CellFie", the function retrieves 
+#' KEGG data automatically. Default: \code{NULL}
+#'
+#' @param size.index A numeric multiplier controlling overall network plot dimensions 
+#' (height and width). Useful for large networks. Default: \code{1}
+#'
+#' @param vertex.size.index A numeric multiplier for scaling vertex (node) sizes 
+#' based on hubness/connectivity. Larger values produce more size variation. 
+#' Default: \code{10}
+#'
+#' @details
+#' The function performs the following steps:
+#' \itemize{
+#'   \item Retrieves genes/proteins associated with the specified metabolic system
+#'   \item Calculates Spearman correlation matrix across samples
+#'   \item Identifies hub genes (top 3% or minimum 3 genes) with highest connectivity
+#'   \item Filters edges using correlation threshold (default: |r| > 0.6)
+#'   \item Builds igraph network object with edge weights and node hubness scores
+#'   \item Visualizes using Fruchterman-Reingold layout
+#'   \item Node colors: red for hubs, orange for non-hubs
+#'   \item Node sizes scaled by within-module connectivity (hubness)
+#'   \item Edge widths and colors reflect correlation strength and sign
+#' }
+#'
+#' @return
+#' A numeric vector named \code{kWithin} representing the hubness 
+#' (within-module degree Z-score approximation) for each gene in the network. 
+#' Higher values indicate genes with more connections to other genes in the module.
+#'
+#' @examples
+#' \dontrun{
+#'   # Visualize co-expression network for glycolysis pathway
+#'   hubness <- getSystemNetwork(
+#'     dat = expression_data,
+#'     taskInfo = pathway_annotations,
+#'     System = "Glycolysis",
+#'     outdir = "./results/",
+#'     framework = "CellFie",
+#'     size.index = 1.5
+#'   )
+#'   
+#'   # View top hub genes
+#'   head(sort(hubness, decreasing = TRUE), n = 10)
+#' }
+#'
+#' @import igraph
+#' @import dplyr
+#' @import scales
+#' @importFrom tibble column_to_rownames
+#'
+#' @seealso
+#' \code{\link{getSystem}} for retrieving system-specific genes,
+#' \code{\link{getdb_metabolism}} for metabolic pathway databases
+#'
+#' @author Yuan Li
+#'
+#' @export
+#'
 getSystemNetwork = function(
     dat=NdatHu, taskInfo=taskInfo2, System, outdir, suffix="",
     framework="CellFie", keggTable=NULL, size.index=1,
@@ -4135,7 +4222,6 @@ metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
 #' @importFrom dplyr select full_join filter arrange
 #' @importFrom tibble column_to_rownames
 #' @importFrom pheatmap pheatmap
-#' @importFrom colorRampPalette
 #'
 #' @return Invisibly returns NULL. Primary side effect is creation of a PDF file 
 #'   in `outDir` named "HR_survival.pdf" containing the hazard ratio heatmap.
