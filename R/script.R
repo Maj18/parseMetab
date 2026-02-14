@@ -945,7 +945,7 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
  #'
  diffEffectBoxplot_bySystem_GSVA = function(
         rlst_list, taskHierarchy, OUT_DIR, 
-        weight.effect.by.gene=TRUE, effect.statistic="t",
+        weight.effect.by.gene=F, effect.statistic="t",
         w = 2, h = 3.5, title = "Zhou2020",
         winsorize=TRUE, probs=0.05, suffix="",
         sig.statistic="adj.P.Val", sig.cutoff=0.2) {
@@ -1009,6 +1009,7 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
 
     B_Z_N = B_Z_N0 %>%
         dplyr::mutate(class=factor(class, levels = System_orderZ))
+
     if (depth(rlst_list)==5) {
         B_Z_N = B_Z_N %>% 
             ggplot2::ggplot(., ggplot2::aes(x=class, y=effect_weighted, fill=Source)) +
@@ -1018,8 +1019,8 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
                 c("#E69F00", "#56B4E9","#999999","#F0E442","#009E73","#0072B2","#D55E00","#CC79A7"))
     } else {
         B_Z_N = B_Z_N %>%  
-            ggplot2::ggplot(., ggplot2::aes(x=class, y=effect_weighted)) +
-            ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color=NA, alpha=0.6, width=1.1)
+            ggplot2::ggplot(., ggplot2::aes(x=class, y=effect_weighted, fill=class)) +
+            ggplot2::geom_violin(trim=FALSE, color=NA, alpha=0.6, width=1.1) #fill="#E69F00", 
     }
         # ggplot2::ggplot(., ggplot2::aes(x=class, y=effect_weighted)) +
         # ggplot2::geom_boxplot(fill="green4") +
@@ -4610,7 +4611,7 @@ GSVAlimmaTest_inner = function(
     GSVAscores, currentCovariate=NULL, paired=T, OUTDIR) {
     lapply(names(GSVAscores), function(c) {
         g = GSVAscores[[c]]
-        meta0 = data.frame(Sample = colnames(g),
+        meta0 = data.frame(# Sample = colnames(g),
                         Group = gsub("_.*", "", colnames(g)),
                         Sample = gsub("nonMalignant_|Malignant_", "", colnames(g)))
         paired_variable = "Sample"
