@@ -968,9 +968,14 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
         B_Z_N0 = lapply(names(rlst_list), function(cancer){
             temp = rlst_list[[cancer]]$rslt_of_interest
             temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
-            temp$Cancer = cancer
-            temp %>% tibble::rownames_to_column(var="gs_name") 
-            }) %>% Reduce(rbind, .) %>% as.data.frame() 
+            if (nrow(temp)>0) {
+                temp$Cancer = cancer
+                return(temp %>% tibble::rownames_to_column(var="gs_name"))
+            } else {
+                return(NA)
+            }
+        })
+        B_Z_N0 = B_Z_N0[!is.na(B_Z_N0)] %>% Reduce(rbind, .) %>% as.data.frame()
     }
     B_Z_N0 = B_Z_N0 %>%
         dplyr::left_join(taskHierarchy %>% unique()) %>%
