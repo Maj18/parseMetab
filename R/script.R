@@ -4359,7 +4359,7 @@ importFiles_SMTdb = function(INDIR, pattern="st_gene_exp_count.txt", meta = NULL
         if (pattern=="st_neb.txt") {
             file_samples = 
                 meta %>% 
-                filter(cancer==c & sample_type=="cancer") %>%
+                filter(cancer==c & slice_type=="cancer") %>%
                 pull(datasetID) %>% unique()
         } else {
             file_samples = 
@@ -4552,4 +4552,94 @@ getGSVAscores = function(
     }) %>% setNames(names(pseudoBulk_cancer)) %>% .[!is.na(.)]
 } 
 
+#' Differential analysis of GSVA metabolic pathway scores using limma
+#'
+#' Performs differential testing on GSVA-derived metabolic pathway scores
+#' between sample groups using limma. Supports optional sample pairing and
+#' additional covariates in the linear model.
+#'
+#' @param GSVAscores A named list of data frames where each element represents
+#'   a spatial region. Each data frame contains GSVA scores (metabolic pathways
+#'   as rows, samples as columns with group identifier prefix as "Group_ID").
+#' @param currentCovariate Optional character scalar. Name of an additional
+#'   covariate to include in the model alongside \code{Group}. If \code{NULL},
+#'   only \code{Group} is used (default: \code{NULL}).
+#' @param paired Logical scalar. If \code{TRUE}, a duplicate correlation model
+#'   is fitted to account for repeated measures/paired samples. Set to
+#'   \code{FALSE} for unpaired analysis (default: \code{TRUE}).
+#' @param OUTDIR Character scalar. Directory where output results files
+#'   (limma statistics) will be written in subdirectories.
+#'
+#' @return A named list where names correspond to the input list names
+#'   (spatial regions). Each element is a data frame of limma topTable results
+#'   sorted by t-statistic (descending), containing:
+#'   \item{logFC}{Log2 fold-change}
+#'   \item{AveExpr}{Average log2 expression}
+#'   \item{t}{t-statistic}
+#'   \item{P.Value}{Raw p-value}
+#'   \item{adj.P.Val}{Adjusted p-value (Benjamini-Hochberg)}
+#'   \item{B}{B-statistic (log-odds of differential expression)}
+#'
+#' @details
+#' For each spatial region in the input list, the function:
+#' \enumerate{
+#'   \item Extracts group and sample information from column names
+#'   \item Constructs a design matrix from \code{Group} and optional \code{currentCovariate}
+#'   \item Fits a linear model with limma::lmFit()
+#'   \item If \code{paired = TRUE}, applies duplicate correlation correction
+#'   \item Applies empirical Bayes moderation with trend (limma::eBayes)
+#'   \item Extracts differential statistics for the second factor level (typically the test group)
+#'   \item Writes results to \code{OUTDIR/Limma_GSVA/{region}/limmaResult.csv}
+#' }
+#'
+#' Sample column names must follow the format "GroupType_SampleID" (e.g.,
+#' "Malignant_001", "nonMalignant_002"). The group variable is extracted by
+#' removing everything after the first underscore.
+#'
+#' @importFrom limma duplicateCorrelation lmFit eBayes topTable
+#' @importFrom tibble rownames_to_column
+#' @importFrom dplyr arrange
+#'
+#' @export
+GSVAlimmaTest_inner = function(
+    GSVAscores, currentCovariate=NULL, paired=T, OUTDIR) {
+    lapply(names(GSVAscores), function(c) {
+        g = GSVAscores[[c]]
+        meta0 = data.frame(Sample = colnames(g),
+                        Group = gsub("_.*", "", colnames(g)),
+                        Sample = gsub("nonMalignant_|Malignant_", "", colnames(g)))
+        paired_variable = "Sample"
+        baseFormula = ~ Group
+        if (is.null(currentCovariate)) {
+            currentFormula = baseFormula
+        } else {
+            currentFormula = as.formula(paste0("~ ", currentCovariate, " + Group"))}
 
+        design = model.matrix(currentFormula, data=meta0) #
+        colnames(design) = gsub("Group", "", colnames(design))
+        if (paired) { #
+            #Fit with correlated arrays
+            dupcor = limma::duplicateCorrelation(g, design, #
+                block=meta0[, paired_variable, drop=T]) #
+            fit = limma::lmFit(g, design, block=meta0[,paired_variable,drop=T], #
+                correlation=dupcor$consensus)
+        } else { fit = limma::lmFit(g, design) }
+
+        # # Limma trend to refine gene-level variance estimates
+        # gssizes = sapply(kegg_metab_db[rownames(fit$coefficients)], function(gs) {
+        #     length(gs)
+        # })
+        # fit.con = limma::eBayes(fit, robust = TRUE, trend=gssizes)
+        fit.con = limma::eBayes(fit, robust = TRUE, trend=TRUE)
+        rlst_interest =
+            limma::topTable(fit.con, n=Inf, coef=levels(meta0$Group)[2]) %>%
+            arrange(-t)
+        paste0(OUTDIR, "/Limma_GSVA/", c, "/") %>% dir.create(., recursive=T, showWarnings=F)
+        write.table(
+            rlst_interest %>% as.data.frame() %>%
+                    tibble::rownames_to_column(var="Features"),
+            paste0(OUTDIR, "/Limma_GSVA/", c, "/limmaResult.csv"), #
+            quote = F, row.names = F, col.names = T, sep="\t")
+        return(rlst_interest)
+    }) %>% setNames(names(GSVAscores))
+}
