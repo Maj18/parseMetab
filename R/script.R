@@ -331,7 +331,6 @@ getdb_metabolism = function(databaseDIR) {
  #'
  #' @importFrom dplyr %>% mutate group_by summarise arrange pull
  #' @importFrom ggplot2 ggplot aes geom_boxplot labs theme_minimal theme element_text
- #' @importFrom cowplot plot_grid
  #' 
  #' @return Invisibly returns a list containing the two ggplot2 objects (all
  #'   samples and normal-only samples) and the path to the saved PDF (if
@@ -509,7 +508,6 @@ getdb_metabolism = function(databaseDIR) {
  #' @importFrom dplyr %>% select group_by summarise arrange pull mutate
  #' @importFrom ggplot2 ggplot aes geom_boxplot labs theme_minimal theme element_text
  #' @importFrom stringr str_to_title
- #' @importFrom cowplot plot_grid
  #'
  #' @return Invisibly returns a list with the ggplot2 objects for the two
  #'   panels (overall and normals-only) and, when \code{OUTDIR} is provided,
@@ -4321,3 +4319,119 @@ visualizeDiffFeatures_sur = function(
     print(p1)
     dev.off()
 }
+
+
+
+# Functions for anlayzing SMTdb
+#' Import SMTdb files
+#'
+#' Read SMTdb text files organized under cancer-type/sample directories and
+#' return a nested list: top-level keys are cancer types, second-level keys
+#' are sample IDs, values are data.frames (or NA when a file cannot be read).
+#'
+#' @title Import SMTdb files
+#' @param INDIR Character. Directory containing SMTdb files organized as
+#'   <Cancer_type>/<Sample_ID>/*.txt.
+#' @param pattern Character. File name (or pattern) to import, e.g. "st_neb.txt".
+#' @param meta Data.frame. Metadata containing at least columns `cancer` and
+#'   `datasetID`. Optionally `sample_type` when selecting tumor-only samples.
+#' @return A named list (by cancer) of named lists (by sample). Each element
+#'   is a data.frame read from the corresponding file or `NA` if missing or
+#'   unreadable.
+#' @examples
+#' # importFiles_SMTdb("/path/to/SMTdb", pattern = "st_gene_exp_count.txt", meta = meta_df)
+#' @export
+#' @importFrom dplyr filter pull %>%
+#' 
+importFiles_SMTdb = function(INDIR, pattern="st_gene_exp_count.txt", meta = NULL) {
+    if (missing(INDIR) || !dir.exists(INDIR)) stop("INDIR must be an existing directory")
+    if (is.null(meta) || !all(c("cancer","datasetID") %in% colnames(meta))) {
+        stop("meta must be provided and contain columns 'cancer' and 'datasetID'")
+    }
+    cancers = meta$cancer %>% unique()
+    # cancers = list.dirs(INDIR, full.names=FALSE, recursive=FALSE)
+    lapply(cancers, function(c) {
+        cancer_dir = paste0(INDIR, "/", c, "/")
+        # file_paths = 
+        #     list.files(cancer_dir, 
+        #     pattern=pattern, full.names=TRUE, recursive=TRUE)
+        # file_samples = list.dirs(cancer_dir, full.names=F, recursive=FALSE)
+        if (pattern=="st_neb.txt") {
+            file_samples = 
+                meta %>% 
+                filter(cancer==c & sample_type=="cancer") %>%
+                pull(datasetID) %>% unique()
+        } else {
+            file_samples = 
+                meta %>% filter(cancer==c) %>% pull(datasetID) %>% unique()
+        }
+        file_paths = paste0(INDIR, "/", c, "/", file_samples, "/", pattern)
+
+        lapply(seq_along(file_paths), function(i) {
+            file = file_paths[i]
+            if (!file.exists(file)) {
+                warning("Missing file: ", file)
+                return(NA)
+            }
+            tryCatch(
+                read.table(file, header = TRUE, sep = "\t", stringsAsFactors = FALSE, row.names = NULL) %>% as.data.frame(),
+                error = function(e) {
+                    warning("Failed to read file: ", file, " -> ", conditionMessage(e))
+                    NA
+                }
+            )
+        }) %>% setNames(file_samples)
+    }) %>% setNames(cancers)
+}
+
+
+#' Make pseudobulk data from spatial transcriptomics data.
+#' 
+#' Aggregate the gene count across all Malignant/Non-malignant spots for each cancer sample.
+#' 
+#' @param SpatialNeighborhood The spatial neighborhood data got with importFiles_SMTdb().
+#' @param STexpr The spatial transcriptomcis expression data got with importFiles_SMTdb().
+#' 
+#' @return A list of pseudobulk RNA counts, with each component represent a cancer type.
+#' 
+#' @examples 
+#' # getPseudoBulk(SpatialNeighborhood, STexpr)
+#' 
+getPseudoBulk_malignant = function(SpatialNeighborhood, STexpr) {
+    lapply(names(SpatialNeighborhood), function(c) {
+        print(c)
+        sp_nei = SpatialNeighborhood[[c]]
+        st_expr = STexpr[[c]]
+        lapply(names(sp_nei), function(sample) {
+            sp_nei_sample = sp_nei[[sample]] %>% na.omit() 
+            st_expr_sample = st_expr[[sample]] %>% na.omit() %>%
+                tibble::column_to_rownames(var="row.names")
+            st_expr_sample = st_expr_sample[rowSums(st_expr_sample, na.rm=T)>1,]
+            st_expr_sample = st_expr_sample[, colSums(st_expr_sample, na.rm=T)>0]
+            Malignant_spots = sp_nei_sample %>% 
+                filter(Location%in%c("Malignant", "Mal")) %>% pull(row.names) %>%
+                gsub("-", ".", .) %>%
+                intersect(., colnames(st_expr_sample))
+            Non_malignant_spots = sp_nei_sample %>% 
+                filter(Location%in%c("Non-malignant", "nMal")) %>% pull(row.names) %>%
+                gsub("-", ".", .) %>%
+                intersect(., colnames(st_expr_sample))
+                # we only keep cancers with at least 3 malignant samples
+            if (length(Malignant_spots)>=3) {
+                Malignant =  rowSums(st_expr_sample[, Malignant_spots], na.rm=T)} else {
+                    Malignant = NA
+                }
+                # we only keep cancers with at least 3 stromal samples
+            if (length(Non_malignant_spots)>=3) {
+                Non_malignant =  rowSums(st_expr_sample[, Non_malignant_spots], na.rm=T)} else {
+                    Non_malignant = NA
+                }
+            data.frame(Feature=rownames(st_expr_sample),
+                Malignant =  Malignant,
+                Non_malignant = Non_malignant
+            ) %>% setNames(c("Feature", paste0(c("Malignant", "nonMalignant"), "_", sample)))
+        }) %>% Reduce(full_join, .)
+    }) %>% setNames(names(SpatialNeighborhood))
+}
+
+

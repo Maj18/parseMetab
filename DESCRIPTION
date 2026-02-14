@@ -39,12 +39,14 @@ Imports:
     openxlsx (>= 4.2.0),
     stats,
     utils,
-    methods
+    methods,
+    mygene, 
+    scales, 
+    survival,
+    cowplot
 Suggests:
     devtools (>= 2.3.0),
     roxygen2 (>= 7.1.0),
-    knitr,
     rmarkdown,
     testthat (>= 3.0.0)
-VignetteBuilder: knitr
 RoxygenNote: 7.3.2
