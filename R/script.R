@@ -4435,3 +4435,121 @@ getPseudoBulk_malignant = function(SpatialNeighborhood, STexpr) {
 }
 
 
+#' Compute GSVA scores for metabolic pathways across spatial samples
+#'
+#' Calculates gene set variation analysis (GSVA) scores for KEGG metabolic
+#' pathways across pseudo-bulk samples from multiple spatial regions. The
+#' function normalizes expression data, performs optional feature filtering,
+#' and computes pathway enrichment scores for each sample.
+#'
+#' @param pseudoBulk_cancer A named list of numeric matrices where each element
+#'   represents a spatial region (e.g., tissue slice). Each matrix contains
+#'   normalized expression counts with features (genes) as rows and samples
+#'   (formatted as "GroupType_SpatialID") as columns.
+#' @param Feature.filtering Logical scalar. If \code{TRUE}, features are
+#'   filtered to retain only those with counts > \code{min.count} in at least
+#'   \code{samplProp2rm} proportion of samples within each group (default: \code{TRUE}).
+#' @param min.count Numeric scalar. Minimum count threshold for feature filtering
+#'   (default: 5).
+#' @param samplProp2rm Numeric scalar. Proportion of samples per group that must
+#'   exceed \code{min.count} for feature retention. Given as a fraction between
+#'   0 and 1 (default: 0.1).
+#' @param kegg_metab_db A list of KEGG metabolic pathways mapping pathway
+#'   names/IDs to vectors of member gene symbols.
+#' @param OUTDIR Character scalar. Directory where output files will be written.
+#'   Results are saved in subdirectories named after each spatial region.
+#'
+#' @return A named list where names correspond to the input list names
+#'   (spatial regions). Each element is a data frame of GSVA scores with
+#'   metabolic pathways as rows and samples as columns. Regions with fewer than
+#'   3 samples per group are excluded (returns \code{NA} and are filtered out).
+#'
+#' @details
+#' For each spatial region in the input list, the function:
+#' \enumerate{
+#'   \item Parses sample group and slice information from column names
+#'   \item Optionally filters features based on expression thresholds
+#'   \item Performs TMM normalization using edgeR
+#'   \item Saves normalized counts to CSV
+#'   \item Computes GSVA pathway enrichment scores using GSVA::gsva()
+#'   \item Saves GSVA scores to CSV
+#' }
+#'
+#' Normalized counts and GSVA scores are written to:
+#' - \code{OUTDIR/GSVAmetabolicScores/{region}/NormalizedCount.csv}
+#' - \code{OUTDIR/GSVAmetabolicScores/{region}/GSVAmetabolicScores.csv}
+#'
+#' @importFrom dplyr filter mutate across
+#' @importFrom tibble rownames_to_column column_to_rownames
+#' @importFrom edgeR DGEList calcNormFactors
+#' @importFrom GSVA gsvaParam gsva
+#'
+#' @export
+getGSVAscores = function(
+    pseudoBulk_cancer, Feature.filtering=T, 
+    min.count = 5, samplProp2rm = 0.1, kegg_metab_db, OUTDIR) {
+    lapply(names(pseudoBulk_cancer), function(c) {
+        dat = pseudoBulk_cancer[[c]] 
+        rownames(dat) = NULL
+        dat = dat %>% as.data.frame() %>%
+            tibble::column_to_rownames(var="Feature") #%>% na.omit()
+        meta0 = data.frame(Slice = colnames(dat) %>% 
+                    gsub("nonMalignant_", "", .) %>%
+                    gsub("Malignant_", "", .),
+                Group = gsub("_.*", "", colnames(dat)),
+                Sample = colnames(dat))
+        # We need to make sure there are more than 2 samples in each condition:
+        if (sum(table(meta0$Group)>2)==2) {
+            meta0$Group = factor(meta0$Group, levels=c("nonMalignant", "Malignant")) # Reference first!
+            paste0(OUTDIR, "/GSVAmetabolicScores/", c, "/") %>%
+                dir.create(., recursive=TRUE, showWarnings=FALSE)
+                meta0 = filter(meta0, Sample%in%colnames(dat))
+
+            # Make sure the sample are in the same order in both meta and dat:
+            dat = dat[, meta0$Sample]
+            meta0 = meta0 %>% mutate(across(where(is.factor), droplevels))
+            mapping = setNames(meta0$Group, meta0$Sample)
+            print("Only keep features that have at least min.nr number of values that are >5 in each group...")
+            min.nr = round(max((ncol(dat)/2)*samplProp2rm, 2), 0)
+            if (Feature.filtering) {
+                B = mapping[colnames(dat)] %>% as.character()
+                featureskeep = apply(dat>min.count, 1, function(row) {
+                    A = row
+                    sum(aggregate(A~B, data=data.frame(A=A,B=B), sum, na.rm=T)[,"A"]>=min.nr)>1
+                })
+                dat = dat[featureskeep, ]
+            }
+            temp = replace(dat, is.na(dat), 0)
+            dge = edgeR::DGEList(counts=temp)
+            dge = edgeR::calcNormFactors(dge, method = "TMMwsp")
+            effect.lib.sizes = (dge$samples$lib.size) * (dge$samples$norm.factors)
+            normalizedCount = (t(t(dat)/effect.lib.sizes))*median(effect.lib.sizes)
+            write.table(
+                normalizedCount %>% as.data.frame() %>%
+                        tibble::rownames_to_column(var="Features"),
+                paste0(OUTDIR, "/GSVAmetabolicScores/", c, "/NormalizedCount.csv"),
+                quote = F, row.names = F, col.names = T, sep="\t")
+
+            # Calcualte GSVA per sample
+            # BiocManager::install("GSVA")
+            normalizedCount = (t(t(temp)/effect.lib.sizes))*median(effect.lib.sizes)
+            normalizedCount = as.matrix(normalizedCount)
+            normalizedCount = matrix(as.numeric(normalizedCount),
+                nrow = nrow(normalizedCount),
+                ncol = ncol(normalizedCount), dimnames = dimnames(normalizedCount))
+
+            param = GSVA::gsvaParam(normalizedCount, kegg_metab_db, minSize=5, maxSize=500)
+            gsva_scores = 
+                tryCatch(GSVA::gsva(param, verbose=TRUE) %>% 
+                as.data.frame(), error = function(e) NA)
+            write.table(
+                gsva_scores %>% as.data.frame() %>%
+                        tibble::rownames_to_column(var="Features"),
+                paste0(OUTDIR, "/GSVAmetabolicScores/", c, "/GSVAmetabolicScores.csv"),
+                quote = F, row.names = F, col.names = T, sep="\t")
+            return(as.data.frame(gsva_scores))
+        } else {return(NA)}
+    }) %>% setNames(names(pseudoBulk_cancer)) %>% .[!is.na(.)]
+} 
+
+
