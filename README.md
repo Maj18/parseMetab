@@ -2,7 +2,7 @@
 
 **Metabolic activity inference and analysis for omics data**
 
-![Version](https://img.shields.io/badge/version-1.0.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.0.2-brightgreen)
 ![License](https://img.shields.io/badge/license-GPL%20%28%3E%3D%203%29-green)
 ![Status](https://img.shields.io/badge/status-active-success)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18647837.svg)](https://doi.org/10.5281/zenodo.18647837)
