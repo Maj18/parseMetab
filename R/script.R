@@ -38,6 +38,8 @@
  #'   comparison of interest (including statistics and adjusted p-values).}
  #' \item{gsva}{The matrix of GSVA scores (pathways x samples).}
  #' \item{fitted.model}{The limma fit object (returned invisibly).}
+ #' 
+ #' @export
  #'
  GSVAlimmaTest = function(dat, paired = TRUE, Feature.filtering = TRUE,
         currentCovariate = NULL, meta = meta, paired_variable = "Patient",
@@ -262,6 +264,8 @@ getdb_metabolism = function(databaseDIR) {
  #' @return Invisibly returns the generated \code{ggplot2} object. The primary
  #'   side-effect is writing the PDF file to \code{outdir} when provided.
  #'
+ #' @export
+ #' 
  getCirPackingPlot_GSVA = function(kegg_metab_db_table, outdir) {
     pathway_hierachy =  kegg_metab_db_table %>% mutate(Depth0="Metabolism") %>%
         dplyr::mutate(Depth2=gs_name) %>% dplyr::mutate(Depth1=class) %>%
@@ -336,7 +340,8 @@ getdb_metabolism = function(databaseDIR) {
  #'   samples and normal-only samples) and the path to the saved PDF (if
  #'   `OUTDIR` is provided). A PDF named `GSVA_samples.pdf` is written to
  #'   `OUTDIR` when `OUTDIR` is non-NULL.
- #'
+ #' @export
+ #' 
  visualizeGSVSscoresGroup = function(
     GSVA_limma_rslt_gsva, paired_data, OUTDIR,
     Condition_column = "sample_type",
@@ -416,7 +421,8 @@ getdb_metabolism = function(databaseDIR) {
  #' @return A pdf file, Pathway_size_class.pdf in the OUTDIR.
  #' @examples
  #' # visualizeGSsizeClass(GSVA_limma_rslt_gsva, genes4GSVA, kegg_metab_db, kegg_metab_db_table, OUTDIR)
- #'
+ #' @export
+ #' 
  visualizeGSsizeClass = function(
         GSVA_limma_rslt_gsva, genes4GSVA,
         kegg_metab_db, kegg_metab_db_table,
@@ -514,6 +520,8 @@ getdb_metabolism = function(databaseDIR) {
  #'   the path to the saved PDF file. The primary side-effect is creation of a
  #'   PDF file in \code{OUTDIR} named \file{GSVA_pathway_class.pdf}.
  #'
+ #' @export
+ #' 
  visualizeGSVSscoresClass = function(
     GSVA_limma_rslt, kegg_metab_db_table, paired_data, OUTDIR,
     Condition_column = "sample_type",
@@ -635,6 +643,8 @@ getdb_metabolism = function(databaseDIR) {
  #' @return Invisibly returns NULL. A PDF file named "Sig_pathway_nr.pdf" is
  #'   written to `OUTDIR` containing the stacked bar chart.
  #'
+ #' @export
+ #' 
  visualizeSigNr = function(
     OUTDIR, GSVA_limma_rslt, 
     significance_statistic="adj.P.Val", 
@@ -943,6 +953,8 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
  #' @return Invisibly returns NULL. A PDF file named "diffEffectBoxplot_system<suffix>.pdf"
  #'   is written to `OUT_DIR` containing the violin plot visualization.
  #'
+ #' @export
+ #' 
  diffEffectBoxplot_bySystem_GSVA = function(
         rlst_list, taskHierarchy, OUT_DIR, 
         weight.effect.by.gene=F, effect.statistic="t",
@@ -1097,6 +1109,8 @@ makeLimmaDotplot_TCGA = function(rlst_list, sig_statistic="adj.P.Val",
  #' @return Invisibly returns NULL. A PDF file named "diffEffectBoxplot_cancer.pdf"
  #'   is written to `OUT_DIR` containing the boxplot visualization.
  #'
+ #' @export
+ #' 
 diffEffectBoxplot_byCancer_GSVA = function(
     rlst_list, OUT_DIR, w=2.75, h=3.0, title="Zhou2020") {
     B_Z_N0 = lapply(names(rlst_list), function(cancer){
@@ -1188,6 +1202,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #' @examples
  #' # depths <- sumUpTaskScores(cfs, Depth = "Depth1", h = 12, w = 30, OUTDIR = "./out")
  #'
+ #' @export
+ #' 
  sumUpTaskScores = function(cfs, Depth, h=12, w=30, OUTDIR) {
     cols_to_group = c("Sample", Depth)
     Depths = cfs %>%
@@ -1244,6 +1260,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #' @examples
  #' # plotTaskSizes(taskInfo, OUTDIR = "./out")
  #'
+ #' @export
+ #' 
  plotTaskSizes = function(taskInfo, OUTDIR) {
     taskInfo = taskInfo %>% unique() %>% 
         dplyr::select(Sample, Depth3, Depth1, GeneAssociatedToEssentialRxnsTask) %>%
@@ -1293,6 +1311,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #'   The primary side-effect is writing \file{TaskSummary.pdf} to
  #'   \code{out_dir}.
  #'
+ #' @export
+ #' 
  getCirPackingPlot_CellFie = function(cfs, out_dir) {
     edges = cfs%>%dplyr::mutate(Depth0="Metabolism")%>%.[,c("Depth0","Depth1")]%>%
         unique()%>%setNames(c("from", "to")) %>%
@@ -1364,6 +1384,8 @@ diffEffectBoxplot_byCancer_GSVA = function(
  #' @examples
  #' # processCellFieOutput(combined = FALSE, outdir = "./CellFieOut/", SampleNames = samples, meta = meta, samples2keep = samples)
  #'
+ #' @export
+ #' 
  processCellFieOutput = function(combined=FALSE,
      outdir = paste0(OUTDIR, "/CellFieOut/"), SampleNames, meta, samples2keep) {
     # list folders 
@@ -1582,6 +1604,7 @@ diffEffectBoxplot_byCancer_GSVA = function(
 #' # res <- limmaTest_CellFie(dat, paired = TRUE, meta = meta,
 #' #                         paired_variable = "Patient")
 #' @export
+#' 
 limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL, 
     checkCovariate=FALSE, meta=meta, paired_variable="Patient") {
     meta = filter(meta, Sample%in%colnames(dat))
@@ -1681,7 +1704,7 @@ limmaTest_CellFie = function(dat, paired=TRUE, currentCovariate=NULL,
 #' # str(res)
 #' }
 #' @export
-
+#' 
 runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
     dir.create(OUTDIRV, recursive = TRUE, showWarnings = FALSE)
     rownames(cfs) = NULL
@@ -1812,7 +1835,7 @@ runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
 #' makeTaskScoreHeatmap_CellFie(rlst_list, cf5_Depth, OUTDIRV = "./results", w = 10, h = 20, adj.P.Val.cutoff = 0.05, meta)
 #' }
 #' @export
-
+#' 
 makeTaskScoreHeatmap_CellFie = function(rlst_list, cf5_Depth, 
     OUTDIRV, w=10,h=23, adj.P.Val.cutoff = 0.05, meta) {
     sig.feature.list = c(lapply(names(rlst_list), function(ct) {
@@ -1901,7 +1924,7 @@ makeTaskScoreHeatmap_CellFie = function(rlst_list, cf5_Depth,
 #' # print(p)
 #' }
 #' @export
-
+#' 
 makeLimmaDotplot_CellFie = function(rlst_list,
     adj.P.Val.cutoff, w=NULL, h=NULL, OUTDIRV, 
     Depth="Depth3", lowfigure=F, title = "Pan-cancer tasks", 
@@ -2029,7 +2052,7 @@ makeLimmaDotplot_CellFie = function(rlst_list,
 #' # print(p)
 #' }
 #' @export
-
+#' 
 doVolcano_CellFie = function(resi, NAME, 
     adj.P.Val.cutoff=0.05, logFC.cutoff=0, lfcShrink=F) {
     selectedCols = c("Task", "logFC", "P.Value", "adj.P.Val", "Depth")
@@ -2068,6 +2091,8 @@ doVolcano_CellFie = function(resi, NAME,
 #' @param w numeric or NULL. Figure width in inches
 #' 
 #' @importFrom dplyr %>%
+#' 
+#' @export
 #' 
 SampleSizeCircularBarplot = function(meta, title="Pan-cancer tasks", OUT_DIR, h=4, w=4.5) {
     temp = meta %>% dplyr::count(Cancer_type, Condition) %>%
@@ -2127,7 +2152,7 @@ SampleSizeCircularBarplot = function(meta, title="Pan-cancer tasks", OUT_DIR, h=
 #' ActivityBoxplot_byCancer(meta, cf, OUT_DIR = "./plots/", w = 3, h = 4, title = "My Study")
 #' }
 #' @export
-
+#' 
 ActivityBoxplot_byCancer = function(
     meta, cf, OUT_DIR, w=2.75, h=3.0, title="Pan-cancer tasks") {
     cf5 = cf %>% dplyr::left_join(meta) %>% 
@@ -2183,7 +2208,7 @@ ActivityBoxplot_byCancer = function(
 #' ActivityBoxplot_bySystem(cf, OUT_DIR = "./plots/", w = 2, h = 3.5, title = "My Study")
 #' }
 #' @export
-
+#' 
 ActivityBoxplot_bySystem = function(
     cf, OUT_DIR, w=2, h=3.5, title="Pan-cancer tasks") {
     B_Z_N0 = cf %>% group_by(Depth1, Depth3) %>%
@@ -2243,7 +2268,7 @@ ActivityBoxplot_bySystem = function(
 #' SigNrBarplot(rlst_list, sig.cutoff = 0.05, w = 3, h = 4, OUT_DIR = "./plots/")
 #' }
 #' @export
-
+#' 
 SigNrBarplot = function(
     rlst_list, sig.cutoff=0.05, w=2.75, h=3.0, OUT_DIR){
     temp = c(sapply(rlst_list, function(cancer) {
@@ -2502,7 +2527,7 @@ diffEffectBoxplot_bySystem = function(
 #'                           title = "Study Cancer Types")
 #' }
 #' @export
-
+#' 
 diffEffectBoxplot_byCancer = function(
     rlst_list, OUT_DIR, w=2.75, h=3.0, title="Pan-cancer tasks") {
     B_Z_N0 = lapply(names(rlst_list), function(cancer){
@@ -2568,6 +2593,8 @@ diffEffectBoxplot_byCancer = function(
 #' # getCircularBarplot(df, outdir = "plots", name = "samples")
 #'
 #' @importFrom dplyr %>%
+#' 
+#' @export
 #' 
 getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
     # Set a number of 'empty bar' to add at the end of each group
@@ -2831,7 +2858,7 @@ getSystem = function(taskInfo2, System) {
 #' }
 #'
 #' @export
-
+#' 
 visualizeDiffFeatures = function(
     limma_rslt=limma_rslt_list, 
     outdir=outDirZhou, 
@@ -3060,7 +3087,7 @@ visualizeDiffFeatures = function(
 #' }
 #'
 #' @export
-
+#' 
 systemDiffAnalysis = function(
     System="LIPIDS METABOLISM",
     outDirHu, outDirZhou,
@@ -3265,7 +3292,7 @@ systemDiffAnalysis = function(
 #' }
 #'
 #' @export
-
+#' 
 makeEffectSizeBoxplot_system = function(
     rslt_lists, dataset="Hu", 
     effect.statistic="logFC",
@@ -3387,7 +3414,7 @@ makeEffectSizeBoxplot_system = function(
 #' }
 #'
 #' @export
-
+#' 
 makeEffectSizeBoxplot_cancer = function(
     rslt_lists, dataset="Hu", 
     effect.statistic="logFC",
@@ -3516,7 +3543,7 @@ makeEffectSizeBoxplot_cancer = function(
 #' }
 #'
 #' @export
-
+#' 
 makeExprBoxplot_system = function(
     NormExpr=NdatHu, 
     rslt_lists,
@@ -3853,7 +3880,7 @@ getSystemNetwork = function(
 #' }
 #'
 #' @export
-
+#' 
 metabolicSurvival_coxreg = function(meta, GSVAscores) {
     meta = meta[!(is.na(meta$days_to_death)&is.na(meta$days_to_last_follow_up)),]
     meta = meta[!is.na(meta$sample.submitter_id), ]
@@ -4031,7 +4058,7 @@ metabolicSurvival_coxreg = function(meta, GSVAscores) {
 #' }
 #'
 #' @export
-
+#' 
 metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
     meta = meta[!(is.na(meta$days_to_death)&is.na(meta$days_to_last_follow_up)),]
     meta = meta[!is.na(meta$sample.submitter_id), ]
@@ -4285,7 +4312,7 @@ metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
 #' }
 #'
 #' @export
-
+#' 
 visualizeDiffFeatures_sur = function(
     metabolicSur_rslts=metabolicSur_rslts, 
     kegg_metab_db_table = kegg_metab_dbs$kegg_metab_db_table,
