@@ -665,7 +665,7 @@ getdb_metabolism = function(databaseDIR) {
 
 
 #' @title Create Dot-Plot of Dysregulated Metabolic Pathways Across Cancer Types
- #'
+#'
 #' @description
 #' Generates a comprehensive dot-plot summarizing pathway-level differential
 #' expression results (from limma) across multiple cancer cohorts in TCGA.
@@ -2471,7 +2471,7 @@ diffEffectBoxplot_bySystem = function(
 }
 
 
-#' Boxplot of limma differential effect (t statistic) by cancer type
+#' Boxplot of limma differential effect (logFC) by cancer type
 #'
 #' Create a boxplot summarizing the differential effect logFC (weighted by activity level) for each
 #' cancer cohort. The function expects limma results in \code{rlst_list}
@@ -2543,6 +2543,32 @@ diffEffectBoxplot_byCancer = function(
 # library(tidyverse)
 # library(viridis)
 
+#' Create circular stacked barplot (radial barplot)
+#'
+#' Generates a circular (polar) stacked barplot grouped by `group`, where each
+#' bar corresponds to an `individual` and segments are stacked by `observation`.
+#' The plot is saved as a PDF file at `file.path(outdir, paste0(name, ".pdf"))`.
+#'
+#' @param data A data.frame containing at minimum the columns: `group`,
+#'   `individual`, `observation`, and `value` (numeric). Additional columns are ignored.
+#' @param outdir Character. Output directory where the PDF will be saved. The
+#'   directory will be created if it does not exist.
+#' @param name Character. Base name for the output PDF file (default: "SampleSizes").
+#' @param h Numeric. Height (in inches) of the saved PDF (default: 10).
+#' @param w Numeric. Width (in inches) of the saved PDF (default: 10).
+#'
+#' @return Invisibly returns the created `ggplot` object (invisible) after
+#'   saving the PDF to disk.
+#'
+#' @details The function adds a small number of empty bars between groups for
+#'   spacing, computes label angles to keep text readable, draws grid lines and
+#'   group titles, and uses a viridis color scale for the stacked segments.
+#'
+#' @examples
+#' # getCircularBarplot(df, outdir = "plots", name = "samples")
+#'
+#' @importFrom dplyr %>%
+#' 
 getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
     # Set a number of 'empty bar' to add at the end of each group
     empty_bar = 2
