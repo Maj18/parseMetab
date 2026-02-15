@@ -1711,8 +1711,8 @@ runLimmaCellFie = function(depth, cfs, meta, OUTDIRV, w=9.5, height=23) {
           paired = TRUE
         } else {paired = FALSE}
         ## Remove features with 0 variance
-        invisible(capture.output({library(matrixStats)}))
-        keep = rowSds(sub%>%as.matrix(), na.rm = T) > 0
+        # invisible(capture.output({library(matrixStats)}))
+        keep = matrixStats::rowSds(sub%>%as.matrix(), na.rm = T) > 0
         sub = sub[keep, ]
         if (length(unique(meta_sub$Condition))>1) {
             ## Paired analysis with only group in the model
@@ -2540,8 +2540,8 @@ diffEffectBoxplot_byCancer = function(
 }
 
 # library
-library(tidyverse)
-library(viridis)
+# library(tidyverse)
+# library(viridis)
 
 getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
     # Set a number of 'empty bar' to add at the end of each group
@@ -2560,7 +2560,8 @@ getCircularBarplot = function(data, outdir, name="SampleSizes", h=10, w=10) {
     data$id = mapping[paste0(data$individual, data$group)]
 
     # Get the name and the y position of each label
-    label_data = data %>% group_by(id, individual) %>% summarize(tot=sum(value))
+    data$value = as.numeric(data$value)
+    label_data = data %>% group_by(id, individual) %>% summarize(tot=sum(value, na.rm=T))
     number_of_bar = nrow(label_data)
     angle = 90 - 360 * (label_data$id-0.5) /number_of_bar     
     # I substract 0.5 because the letter must have the angle of the center of the bars. Not extreme right(1) or extreme left (0)
