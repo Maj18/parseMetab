@@ -2458,10 +2458,12 @@ diffEffectBoxplot_bySystem = function(
     if (depth(rlst_list)==5) {
         B_Z_N = B_Z_N + 
             ggplot2::theme(legend.position="right",
-                axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=1))
-    }
+                axis.text.x = ggplot2::element_text(angle = 135, hjust=1, vjust=1))
     } else {
         B_Z_N = B_Z_N +
+        ggplot2::theme(legend.position="right",
+                axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=1))
+    }
 
     pdf(paste0(OUT_DIR, "/diffEffectBoxplot_system.pdf"), w=w, h=h)
         print(B_Z_N)
