@@ -2454,9 +2454,14 @@ diffEffectBoxplot_bySystem = function(
     B_Z_N = B_Z_N + ggplot2::labs(title = title,
             x="System", y="t")+
         ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "red", linewidth = 0.5) +
-        ggplot2::theme_minimal() +
-        ggplot2::theme(legend.position="right",
-            axis.text.x = ggplot2::element_text(angle = 135, hjust=1, vjust=1))
+        ggplot2::theme_minimal() 
+    if (depth(rlst_list)==5) {
+        B_Z_N = B_Z_N + 
+            ggplot2::theme(legend.position="right",
+                axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=1))
+    }
+    } else {
+        B_Z_N = B_Z_N +
 
     pdf(paste0(OUT_DIR, "/diffEffectBoxplot_system.pdf"), w=w, h=h)
         print(B_Z_N)
