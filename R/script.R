@@ -2520,7 +2520,7 @@ diffEffectBoxplot_byCancer = function(
     B_Z_N = B_Z_N0 %>%
         dplyr::mutate(Cancer=factor(Cancer_type, levels = Cancer_orderZ)) %>%
         ggplot2::ggplot(., ggplot2::aes(x=Cancer, y=logFC_weighted)) +
-        # ggplot2::geom_boxplot(fill="green4") +
+        ggplot2::geom_boxplot(fill="green4") +
         ggplot2::labs(title = title,
             x="Cancer", y="Wei. Diff. effect")+
         ggplot2::theme_minimal() +
