@@ -8,7 +8,7 @@ diffEffectBoxplot_bySystem_GSVA(
   rlst_list,
   taskHierarchy,
   OUT_DIR,
-  weight.effect.by.gene = TRUE,
+  weight.effect.by.gene = F,
   effect.statistic = "t",
   w = 2,
   h = 3.5,

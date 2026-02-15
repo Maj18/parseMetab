@@ -40,5 +40,4 @@ comparing pathway gene counts across metabolic classes and datasets.
 }
 \examples{
 # visualizeGSsizeClass(GSVA_limma_rslt_gsva, genes4GSVA, kegg_metab_db, kegg_metab_db_table, OUTDIR)
-
 }

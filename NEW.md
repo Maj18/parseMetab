@@ -1,6 +1,34 @@
 # parseMetab News & Release History
 
-## parseMetab 1.0.0 (Release - February 2026)
+## parseMetab 1.0.2 (Release - February 2026)
+
+🎉 **Major Release - Production Ready**
+
+**DOI**: [10.5281/zenodo.18647837](https://doi.org/10.5281/zenodo.18647837)
+
+**Improvements:**
+- Enhanced roxygen2 documentation block with:
+  - Clearer function description explaining nested list structure
+  - Detailed `@param` descriptions for `INDIR`, `pattern`, and `meta`
+  - Comprehensive `@return` documentation
+  - Example usage in `@examples`
+  - Added `@export` and `@importFrom` tags (dplyr, magrittr)
+
+- Added runtime validation:
+  - Check that `INDIR` exists and is a valid directory
+  - Validate `meta` parameter contains required columns (`cancer`, `datasetID`)
+  
+- Improved error handling:
+  - Check for file existence before attempting to read
+  - Enhanced warning messages when files are missing or unreadable
+  - Better error reporting with condition messages
+
+### 2. Added Documentation for `getCircularBarplot()` Function
+
+---
+
+
+## parseMetab 1.0.1 (Release - February 2026)
 
 🎉 **Major Release - Production Ready**
 

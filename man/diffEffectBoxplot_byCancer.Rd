@@ -2,7 +2,7 @@
 % Please edit documentation in R/script.R
 \name{diffEffectBoxplot_byCancer}
 \alias{diffEffectBoxplot_byCancer}
-\title{Boxplot of limma differential effect (t statistic) by cancer type}
+\title{Boxplot of limma differential effect (logFC) by cancer type}
 \usage{
 diffEffectBoxplot_byCancer(
   rlst_list,

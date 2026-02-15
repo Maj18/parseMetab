@@ -4310,7 +4310,7 @@ metabolicSurvival_Kaplan_Meier = function(meta, GSVAscores, outdir) {
 #'                             w = 8, h = 12,
 #'                             pvalue_cutoff = 0.1)
 #' }
-#'
+#' 
 #' @export
 #' 
 visualizeDiffFeatures_sur = function(
@@ -4464,6 +4464,8 @@ importFiles_SMTdb = function(INDIR, pattern="st_gene_exp_count.txt", meta = NULL
 #' @examples 
 #' # getPseudoBulk(SpatialNeighborhood, STexpr)
 #' 
+#' @export
+#' 
 getPseudoBulk_malignant = function(SpatialNeighborhood, STexpr) {
     lapply(names(SpatialNeighborhood), function(c) {
         print(c)
@@ -4552,6 +4554,7 @@ getPseudoBulk_malignant = function(SpatialNeighborhood, STexpr) {
 #' @importFrom GSVA gsvaParam gsva
 #'
 #' @export
+#' 
 getGSVAscores = function(
     pseudoBulk_cancer, Feature.filtering=T, 
     min.count = 5, samplProp2rm = 0.1, kegg_metab_db, OUTDIR) {
@@ -4619,6 +4622,7 @@ getGSVAscores = function(
     }) %>% setNames(names(pseudoBulk_cancer)) %>% .[!is.na(.)]
 } 
 
+
 #' Differential analysis of GSVA metabolic pathway scores using limma
 #'
 #' Performs differential testing on GSVA-derived metabolic pathway scores
@@ -4668,6 +4672,7 @@ getGSVAscores = function(
 #' @importFrom dplyr arrange
 #'
 #' @export
+#' 
 GSVAlimmaTest_inner = function(
     GSVAscores, currentCovariate=NULL, paired=T, OUTDIR) {
     lapply(names(GSVAscores), function(c) {
@@ -4710,3 +4715,4 @@ GSVAlimmaTest_inner = function(
         return(rlst_interest)
     }) %>% setNames(names(GSVAscores))
 }
+
