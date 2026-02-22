@@ -6,7 +6,8 @@
 
 **DOI**: [10.5281/zenodo.18730007](https://doi.org/10.5281/zenodo.18730007)
 **Improvements:**
-- Updated getSystemNetwork, now all features are shown.
+- Updated getSystemNetwork, now we calculate correlation within each cancer types and then take the average
+- Updated diffEffectBoxplot_bySystem, now all features are plotted.
 
 
 ## parseMetab 1.0.2 (Release - February 2026)
