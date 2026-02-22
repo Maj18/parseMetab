@@ -1,5 +1,5 @@
 Package: parseMetab
-Version: 1.0.2
+Version: 1.0.3
 Type: Package
 Title: Metabolic Activity Inference and Analysis for Omics Data
 Description: Comprehensive utilities for inferring and analyzing metabolic activities from 
@@ -19,7 +19,7 @@ Encoding: UTF-8
 Language: en-US
 URL: https://github.com/Maj18/parseMetab
 BugReports: https://github.com/Maj18/parseMetab/issues
-DOI: 10.5281/zenodo.18647837
+DOI: 10.5281/zenodo.18730007
 Imports:
     dplyr,
     ggplot2,
