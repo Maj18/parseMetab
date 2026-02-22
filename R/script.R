@@ -2414,9 +2414,9 @@ diffEffectBoxplot_bySystem = function(
         B_Z_N0 = lapply(names(rlst_list), function(study) {
             rlst = rlst_list[[study]]
             temp2 = lapply(names(rlst), function(c){
-                # print(c)
                 temp = rlst[[c]]$rslt_of_interest
-                temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+                # temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+                temp$sig = ifelse(temp[[sig.statistic]]<sig.cutoff, TRUE, FALSE)
                 temp$Cancer = c
                 if (!"Depth3" %in% colnames(temp)) {
                     temp = as.data.frame(temp) %>% 
@@ -2434,7 +2434,8 @@ diffEffectBoxplot_bySystem = function(
     } else {
         B_Z_N0 = lapply(names(rlst_list), function(c){
             temp = rlst_list[[c]]$rslt_of_interest
-            temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+            # temp = temp[temp[[sig.statistic]] < sig.cutoff, ]
+            temp$sig = ifelse(temp[[sig.statistic]]<sig.cutoff, TRUE, FALSE)
             temp$Cancer = c
             as.data.frame(temp) %>% tibble::rownames_to_column(var="Depth3") 
         }) %>% Reduce(rbind, .) %>% as.data.frame() %>% 
@@ -2468,12 +2469,24 @@ diffEffectBoxplot_bySystem = function(
             ggplot2::ggplot(., ggplot2::aes(x=System, y=effect_weighted, fill=Source)) +
             ggplot2::geom_violin(position = position_dodge(width = 0.85),  # reduce spacing
                 width = 2, trim=FALSE, alpha=0.75, col=NA)+
+            # geom_jitter(size = 0.1, color = "grey", alpha = 0.5, 
+            #             position = position_dodge(width = 0.85)) +
+            # geom_point(data = subset(B_Z_N, sig == TRUE),
+            #             aes(x = System, y = effect_weighted),
+            #             color = "red", size = 0.1,
+            #             position = position_dodge(width = 0.85)) +
             ggplot2::scale_fill_manual(values = 
                 c("#E69F00", "#56B4E9","#999999","#F0E442","#009E73","#0072B2","#D55E00","#CC79A7"))
     } else {
         B_Z_N = B_Z_N %>%  
             ggplot2::ggplot(., ggplot2::aes(x=System, y=effect_weighted)) +
-            ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color=NA, alpha=0.6, width=1.1)
+            ggplot2::geom_violin(trim=FALSE, fill="#E69F00", color=NA, alpha=0.6, width=1.1) #+
+            # geom_jitter(size = 0.1, color = "grey", alpha = 0.5, 
+            #             position = position_dodge(width = 0.85)) +
+            # geom_point(data = subset(B_Z_N, sig == TRUE),
+            #             aes(x = System, y = effect_weighted),
+            #             color = "red", size = 0.1,
+            #             position = position_dodge(width = 0.85))
     }
 
     B_Z_N = B_Z_N + ggplot2::labs(title = title,
@@ -3687,7 +3700,7 @@ makeExprBoxplot_system = function(
 getSystemNetwork = function(
     dat=NdatHu, taskInfo=taskInfo2, System, outdir, suffix="",
     framework="CellFie", keggTable=NULL, size.index=1,
-    vertex.size.index=10) {
+    vertex.size.index=10, meta=NULL) {
     if (framework == "CellFie") {
         systemHu = getSystem(taskInfo, System=System)
         sub = dat[rownames(dat) %in% systemHu$GeneAssociatedToEssentialRxnsTask,]
@@ -3715,9 +3728,15 @@ getSystemNetwork = function(
     }
 
     # Calcaulte co-expression matrix: genes x samples and find hub features
-    cor_mat = cor(t(sub), method = "spearman")
+    cor_mat = (lapply(unique(meta$Cancer_type), function(c) {
+        samples = meta %>% 
+            filter(Cancer_type==c) %>% 
+            pull(Sample) %>% intersect(colnames(sub))
+        cor(t(sub[,samples]), method = "spearman")
+    }) %>% Reduce("+", .)) / length(unique(meta$Cancer_type))
+    # cor_mat = cor(t(sub), method = "spearman")
     kWithin = rowSums(abs(cor_mat)) - 1 # hubness
-    hub.nr = max(3, 0.03*length(kWithin))
+    hub.nr = max(3, 0.01*length(kWithin))
     hubs = names(sort(kWithin, decreasing = TRUE))[1:hub.nr]
 
     # library(igraph)
