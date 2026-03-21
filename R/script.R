@@ -51,7 +51,7 @@
     mapping = setNames(meta$Group, meta$Sample)
     min.nr = round(max((ncol(dat)/2)*0.15, 2), 0)
     print(paste0("Only keep features that have at least ", min.nr, 
-                        "number of values that are >5 in each group..."))
+                        " values that are >", min.count, " in each group..."))
     if (Feature.filtering) {
         B = mapping[colnames(dat)] %>% as.character()
         featureskeep = apply(dat>min.count, 1, function(row) {
@@ -61,81 +61,89 @@
         dat = dat[featureskeep, ]
     }
 
-    # conda install conda-forge::r-locfit
-    # conda install bioconda::bioconductor-edger
-    # BiocManager::install("edgeR")
-    Group = factor(meta$Group)
-    # Create a DEGList from the edgeR package
-    dge = edgeR::DGEList(counts=dat)
-    # Normalize the data
-    dge = edgeR::calcNormFactors(dge)
-    # Note: calcNormFactors does not normalize the data, it just calculates normalization factors for use downstream.
-    pdf(paste0(OUTDIR, "/MDS_plot.pdf"))
-        print(limma::plotMDS(dge, col=as.numeric(Group)))
-    dev.off()
+    if (nrow(dat)>0) {
+        # conda install conda-forge::r-locfit
+        # conda install bioconda::bioconductor-edger
+        # BiocManager::install("edgeR")
+        Group = factor(meta$Group)
+        # Create a DEGList from the edgeR package
+        dge = edgeR::DGEList(counts=dat)
+        # Normalize the data
+        dge = edgeR::calcNormFactors(dge)
+        # Note: calcNormFactors does not normalize the data, it just calculates normalization factors for use downstream.
+        pdf(paste0(OUTDIR, "/MDS_plot.pdf"))
+            print(limma::plotMDS(dge, col=as.numeric(Group)))
+        dev.off()
 
-    #if (!is.null(currentCovariate)) {currentCovariate=NULL}
-    baseFormula = ~ Group
-    if (is.null(currentCovariate)) {
-        currentFormula = baseFormula
-    } else {
-        currentFormula = as.formula(paste0("~ ", currentCovariate, " + Group"))}
-    
-    design = model.matrix(currentFormula, data=meta)
-    colnames(design) = gsub("Group", "", colnames(design))
-    dat2 = limma::voom(dge, design, plot=T)
-    # What is voom doing
-    # Counts are transformed to log2 counts per million reads (CPM), 
-    # where per million reads is defined based on the normalization factors we calculated earlier
-    # A linear model is fitted to the log2 CPM for each gene, and the residuals are calculated
-    # A smoothed curve is fitted to the sqrt(residual standard deviation) by average expression (see red line in plot above)
-    # The smoothed curve is used to obtain weights for each gene and sample that are passed into limma along with the log2 CPMs
-    # Save normalized count
-    normalizedCount = dat2$E
-    write.table(
-        normalizedCount %>% as.data.frame() %>%
-                tibble::rownames_to_column(var="Features"),
-        paste0(OUTDIR, "/NormalizedCount.csv"),
-        quote = F, row.names = F, col.names = T, sep="\t")
-    
-    # Calcualte GSVA per sample
-    # BiocManager::install("GSVA")
-    normalizedCount = as.matrix(normalizedCount)
-    normalizedCount = matrix(as.numeric(normalizedCount),
-        nrow = nrow(normalizedCount),
-        ncol = ncol(normalizedCount), dimnames = dimnames(normalizedCount))
-
-    param = GSVA::gsvaParam(normalizedCount, kegg_metab_db, minSize=5, maxSize=500)
-    gsva_scores = tryCatch(GSVA::gsva(param, verbose=TRUE) %>% 
-                            as.data.frame(), error = function(e) NA)
-    if (class(gsva_scores)=="data.frame") {
+        #if (!is.null(currentCovariate)) {currentCovariate=NULL}
+        baseFormula = ~ Group
+        if (is.null(currentCovariate)) {
+            currentFormula = baseFormula
+        } else {
+            currentFormula = as.formula(paste0("~ ", currentCovariate, " + Group"))}
+        
+        design = model.matrix(currentFormula, data=meta)
+        colnames(design) = gsub("Group", "", colnames(design))
+        pdf("Temp.pdf")
+        # options(bitmapType = "png")
+        dat2 = limma::voom(dge, design, plot=T)
+        dev.off()
+        # What is voom doing
+        # Counts are transformed to log2 counts per million reads (CPM), 
+        # where per million reads is defined based on the normalization factors we calculated earlier
+        # A linear model is fitted to the log2 CPM for each gene, and the residuals are calculated
+        # A smoothed curve is fitted to the sqrt(residual standard deviation) by average expression (see red line in plot above)
+        # The smoothed curve is used to obtain weights for each gene and sample that are passed into limma along with the log2 CPMs
+        # Save normalized count
+        normalizedCount = dat2$E
         write.table(
-            gsva_scores %>% as.data.frame() %>%
+            normalizedCount %>% as.data.frame() %>%
                     tibble::rownames_to_column(var="Features"),
-            paste0(OUTDIR, "/GSVAscores.csv"),
+            paste0(OUTDIR, "/NormalizedCount.csv"),
             quote = F, row.names = F, col.names = T, sep="\t")
-        if (paired) {
-            #Fit with correlated arrays
-            dupcor = limma::duplicateCorrelation(gsva_scores, design,
-                block=meta[,paired_variable,drop=T])
-            fit = limma::lmFit(gsva_scores, design, block=meta[,paired_variable,drop=T],
-                correlation=dupcor$consensus)
-        } else { fit = limma::lmFit(gsva_scores, design) }
+        
+        # Calcualte GSVA per sample
+        # BiocManager::install("GSVA")
+        normalizedCount = as.matrix(normalizedCount)
+        normalizedCount = matrix(as.numeric(normalizedCount),
+            nrow = nrow(normalizedCount),
+            ncol = ncol(normalizedCount), dimnames = dimnames(normalizedCount))
 
-        # Limma trend to refine gene-level variance estimates
-        # gssizes = sapply(kegg_metab_db[rownames(fit$coefficients)], function(gs) {
-        #     length(gs)
-        # })
-        # fit.con = limma::eBayes(fit, robust = TRUE, trend=gssizes)
-        fit.con = limma::eBayes(fit, robust = TRUE, trend=TRUE)
-        rlst_interest =
-            limma::topTable(fit.con, n=Inf, coef=levels(meta$Group)[2]) %>%
-            arrange(-t)
-        write.table(
-            rlst_interest %>% as.data.frame() %>%
-                    tibble::rownames_to_column(var="Features"),
-            paste0(OUTDIR, "/limmaResult.csv"),
-            quote = F, row.names = F, col.names = T, sep="\t")
+        param = GSVA::gsvaParam(normalizedCount, kegg_metab_db, minSize=5, maxSize=500)
+        gsva_scores = tryCatch(GSVA::gsva(param, verbose=TRUE) %>% 
+                                as.data.frame(), error = function(e) NA)
+        if (class(gsva_scores)=="data.frame"&length(unique(meta$Patient))>1) {
+            write.table(
+                gsva_scores %>% as.data.frame() %>%
+                        tibble::rownames_to_column(var="Features"),
+                paste0(OUTDIR, "/GSVAscores.csv"),
+                quote = F, row.names = F, col.names = T, sep="\t")
+            if (paired) {
+                #Fit with correlated arrays
+                dupcor = limma::duplicateCorrelation(gsva_scores, design,
+                    block=meta[,paired_variable,drop=T])
+                fit = limma::lmFit(gsva_scores, design, block=meta[,paired_variable,drop=T],
+                    correlation=dupcor$consensus)
+            } else { fit = limma::lmFit(gsva_scores, design) }
+
+            # Limma trend to refine gene-level variance estimates
+            # gssizes = sapply(kegg_metab_db[rownames(fit$coefficients)], function(gs) {
+            #     length(gs)
+            # })
+            # fit.con = limma::eBayes(fit, robust = TRUE, trend=gssizes)
+            fit.con = limma::eBayes(fit, robust = TRUE, trend=TRUE)
+            rlst_interest =
+                limma::topTable(fit.con, n=Inf, coef=levels(meta$Group)[2]) %>%
+                arrange(-t)
+            write.table(
+                rlst_interest %>% as.data.frame() %>%
+                        tibble::rownames_to_column(var="Features"),
+                paste0(OUTDIR, "/limmaResult.csv"),
+                quote = F, row.names = F, col.names = T, sep="\t")
+        } else {
+            fit = NULL
+            rlst_interest = NULL
+        }
     } else {
         fit = NULL
         rlst_interest = NULL
@@ -297,7 +305,7 @@ getdb_metabolism = function(databaseDIR) {
         viridis::scale_color_viridis() +
         ggplot2::theme(legend.position="FALSE") +
         ggplot2::ggtitle("                                           TCGA")
-
+    dir.create(paste0(outdir, "/KEGG_metabolism/"), recursive=TRUE, showWarnings=FALSE)
     pdf(paste0(outdir, "/KEGG_metabolism/TaskSummary.pdf"), h=5, w=4.85)
         print(p)
     dev.off()
@@ -347,7 +355,8 @@ getdb_metabolism = function(databaseDIR) {
     Condition_column = "sample_type",
     Condition.control = "Solid Tissue Normal",
     sample_column = "sample.submitter_id",
-    w=5.5, h=3.0, title="TCGA") {
+    w=5.5, h=3.0, title="TCGA",
+    plot_healthy_control=TRUE) {
     # GSVA scores for all samples
     dat = lapply(seq_along(GSVA_limma_rslt_gsva), function(i) {
         data.frame(
@@ -367,30 +376,32 @@ getdb_metabolism = function(databaseDIR) {
             ggplot2::theme_minimal() +
             ggplot2::theme(legend.position="none",
                 axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
+    if (plot_healthy_control) {
+        # GSVA scores for healthy control samples only
+        dat = lapply(seq_along(GSVA_limma_rslt_gsva), function(j) {
+            normal_samples = paired_data[[j]] # %>%
+                # filter(sample_type=="Solid Tissue Normal") %>% pull(sample.submitter_id)
+            normal_samples = normal_samples[normal_samples[[Condition_column]]==Condition.control, ]
+            normal_samples = normal_samples[[sample_column]]
+            gsva = GSVA_limma_rslt_gsva[[j]] %>% .[, normal_samples]
+            data.frame(
+                means = (rowSums(gsva, na.rm=TRUE)/ncol(gsva)) %>% as.numeric(),
+                Cancer_type = names(GSVA_limma_rslt_gsva)[j])
+            }) %>% Reduce(rbind, .)
+        Cancer_type_order = dat %>% group_by(Cancer_type) %>%
+                summarise(Means=mean(means)) %>%
+                arrange(Means) %>% pull(Cancer_type) %>% unique()
+        P2 = dat %>% dplyr::mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
+                ggplot2::ggplot(., ggplot2::aes(x=Cancer_type, y=means)) +
+                ggplot2::geom_boxplot(fill="green4") +
+                ggplot2::labs(title = title,
+                    x="Cancer_type", y="Mean Norm. Metab. Act.")+
+                ggplot2::theme_minimal() +
+                ggplot2::theme(legend.position="none",
+                    axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
+    } else {P2=P1}
 
-    # GSVA scores for healthy control samples only
-    dat = lapply(seq_along(GSVA_limma_rslt_gsva), function(j) {
-        normal_samples = paired_data[[j]] # %>%
-            # filter(sample_type=="Solid Tissue Normal") %>% pull(sample.submitter_id)
-        normal_samples = normal_samples[normal_samples[[Condition_column]]==Condition.control, ]
-        normal_samples = normal_samples[[sample_column]]
-        gsva = GSVA_limma_rslt_gsva[[j]] %>% .[, normal_samples]
-        data.frame(
-            means = (rowSums(gsva, na.rm=TRUE)/ncol(gsva)) %>% as.numeric(),
-            Cancer_type = names(GSVA_limma_rslt_gsva)[j])
-        }) %>% Reduce(rbind, .)
-    Cancer_type_order = dat %>% group_by(Cancer_type) %>%
-            summarise(Means=mean(means)) %>%
-            arrange(Means) %>% pull(Cancer_type) %>% unique()
-    P2 = dat %>% dplyr::mutate(Cancer_type = factor(Cancer_type, levels=Cancer_type_order)) %>%
-            ggplot2::ggplot(., ggplot2::aes(x=Cancer_type, y=means)) +
-            ggplot2::geom_boxplot(fill="green4") +
-            ggplot2::labs(title = title,
-                x="Cancer_type", y="Mean Norm. Metab. Act.")+
-            ggplot2::theme_minimal() +
-            ggplot2::theme(legend.position="none",
-                axis.text.x = ggplot2::element_text(angle = 90, hjust=1, vjust=0))
-
+    dir.create(OUTDIR, recursive=TRUE, showWarnings=FALSE)
     pdf(paste0(OUTDIR, "/GSVA_samples.pdf"), w=w, h=h)
         print(cowplot::plot_grid(P1, P2))
     dev.off()
