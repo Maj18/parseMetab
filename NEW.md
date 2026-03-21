@@ -1,8 +1,17 @@
 # parseMetab News & Release History
 
+## parseMetab 1.0.4 (Release - March 2026)
+
+🎉 **Release - Production Ready**
+
+**DOI**: [10.5281/zenodo.19153922](https://doi.org/10.5281/zenodo.19153922)
+**Improvements:**
+- Minor updates
+
+
 ## parseMetab 1.0.3 (Release - February 2026)
 
-🎉 **Major Release - Production Ready**
+🎉 **Release - Production Ready**
 
 **DOI**: [10.5281/zenodo.18730007](https://doi.org/10.5281/zenodo.18730007)
 **Improvements:**
@@ -12,7 +21,7 @@
 
 ## parseMetab 1.0.2 (Release - February 2026)
 
-🎉 **Major Release - Production Ready**
+🎉 **Release - Production Ready**
 
 **DOI**: [10.5281/zenodo.18647837](https://doi.org/10.5281/zenodo.18647837)
 

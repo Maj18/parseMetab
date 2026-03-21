@@ -2,10 +2,10 @@
 
 **Metabolic activity inference and analysis for omics data**
 
-![Version](https://img.shields.io/badge/version-1.0.3-brightgreen)
+![Version](https://img.shields.io/badge/version-1.0.4-brightgreen)
 ![License](https://img.shields.io/badge/license-GPL%20%28%3E%3D%203%29-green)
 ![Status](https://img.shields.io/badge/status-active-success)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18730007.svg)](https://doi.org/10.5281/zenodo.18730007)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19153922.svg)](https://doi.org/10.5281/zenodo.19153922)
 
 ## Overview
 
@@ -248,9 +248,9 @@ If you use parseMetab in your research, please cite:
   author = {Li, Yuan},
   title = {parseMetab: Metabolic Activity Inference and Analysis for Omics Data},
   year = {2026},
-  version = {1.0.3},
+  version = {1.0.4},
   url = {https://github.com/Maj18/parseMetab},
-  doi = {10.5281/zenodo.18730007}
+  doi = {10.5281/zenodo.19153922}
 }
 ```
 
@@ -258,7 +258,7 @@ Or in text format:
 
 ```
 Yuan Li (2026). parseMetab: Metabolic activity inference and analysis for omics data. 
-R package version 1.0.3. https://doi.org/10.5281/zenodo.18730007
+R package version 1.0.4. https://doi.org/10.5281/zenodo.19153922
 ```
 
 ## License

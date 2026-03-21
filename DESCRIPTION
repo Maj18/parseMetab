@@ -1,5 +1,5 @@
 Package: parseMetab
-Version: 1.0.3
+Version: 1.0.4
 Type: Package
 Title: Metabolic Activity Inference and Analysis for Omics Data
 Description: Comprehensive utilities for inferring and analyzing metabolic activities from 
