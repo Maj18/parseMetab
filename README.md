@@ -257,6 +257,7 @@ If you use parseMetab in your research, please cite:
 Or in text format:
 
 ```
+Bai et al. (2026) Pan-cancer metabolic landscapes: A multi-omics view. In review.
 Yuan Li (2026). parseMetab: Metabolic activity inference and analysis for omics data. 
 R package version 1.0.4. https://doi.org/10.5281/zenodo.19153922
 ```
