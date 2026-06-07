@@ -69,6 +69,14 @@ A pre-configured Docker container with parseMetab and all dependencies is availa
 
 ```bash
 docker pull yuanli202004/cancer:v2.0.2
+# Start the container:
+docker run -it --rm -v $(pwd):/work yuanli202004/cancer:v2.0.2 bash
+# Within the docker, activate the conda env:
+conda activate SMS7546
+# Navigate the shared folder:
+cd /work/
+# Start R and here you go...
+R
 ```
 
 ### Local Development Installation
@@ -79,56 +87,10 @@ To install from a local copy (for development):
 devtools::install("./parseMetab", dependencies = TRUE)
 ```
 
-## Quick Start
+## Example workflows
 
-Below is a typical workflow demonstrating the main analysis steps. Replace placeholder objects with your data.
+Example workflows and full analysis pipelines can be found in the [project repository](https://github.com/Maj18/cancer).
 
-```r
-library(parseMetab)
-
-# Step 1: Process per-sample metabolic task scores
-# Supports both CellFie and GSVA approaches
-cf <- processCellFieOutput(
-  combined = FALSE,
-  outdir = paste0(OUTDIR, "/CellFieOut/"), 
-  SampleNames = sample_names,
-  meta = metadata,
-  samples2keep = metadata$Sample
-)
-# Result: data frame with columns Depth1, Depth2, Depth3, Sample, TaskScore
-
-# Step 2: Run per-cohort differential testing
-rlst_list <- runLimmaCellFie(
-  cf = cf,
-  meta = metadata,
-  group_var = "condition",
-  paired = FALSE  # Set TRUE for paired designs
-)
-
-# Step 3: Visualize results across cohorts
-# Multi-cohort dotplot highlighting recurrent dysregulated pathways
-makeLimmaDotplot_TCGA(
-  rlst_list$rlst_list,
-  adj.P.Val.cutoff = 0.05,
-  OUTDIRV = "./plots/"
-)
-
-# Step 4: Additional visualizations
-doVolcano_CellFie(
-  results = rlst_list,
-  outdir = "./plots/"
-)
-
-makeTaskScoreHeatmap_CellFie(
-  cf = cf,
-  meta = metadata,
-  title = "Metabolic Activity Heatmap"
-)
-
-# Step 5: Summary statistics and tables
-SigNrBarplot(rlst_list, outdir = "./plots/")
-ActivityBoxplot_byCancer(cf = cf, meta = metadata, outdir = "./plots/")
-```
 
 For detailed parameter documentation and additional examples, see individual function help pages:
 
@@ -273,7 +235,7 @@ This project is licensed under the GPL (>= 3) License. See [DESCRIPTION](DESCRIP
 
 ---
 
-*Last updated: February 2026*
+*Last updated: Maj 2026*
 
 
 
