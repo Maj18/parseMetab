@@ -4,8 +4,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.4-brightgreen)
 ![License](https://img.shields.io/badge/license-GPL%20%28%3E%3D%203%29-green)
-![Status](https://img.shields.io/badge/status-active-success)
-![![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19153922.svg)](https://doi.org/10.5281/zenodo.19153922)
+![Status](https://img.shields.io/badge/status-active-success)  [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19153922.svg)](https://doi.org/10.5281/zenodo.19153922)
 
 
 ## Overview
