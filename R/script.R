@@ -3711,7 +3711,53 @@ makeExprBoxplot_system = function(
 getSystemNetwork = function(
     dat=NdatHu, taskInfo=taskInfo2, System, outdir, suffix="",
     framework="CellFie", keggTable=NULL, size.index=1,
-    vertex.size.index=10, meta=NULL, beta=1) {
+    vertex.size.index=10, meta=NULL, 
+    r2_threshold=0.8) {
+    
+    estimate_scale_free_fit <- function(cor_mat, powers = 1:20, n_bins = 10) {
+        cor_mat[is.na(cor_mat)] <- 0
+        results <- data.frame(Power = powers, R2 = NA, Slope = NA)
+        
+        for (i in seq_along(powers)) {
+            beta <- powers[i]
+            
+            # 1. Calculate Weighted Adjacency Matrix
+            adj_mat <- abs(cor_mat)^beta
+            
+            # 2. Calculate connectivity (kWithin)
+            kWithin <- rowSums(adj_mat) - 1
+            
+            # Avoid zero connectivity errors by adding an infinitesimal value
+            kWithin[kWithin == 0] <- 1e-5 
+            
+            # 3. Discretize kWithin into logarithmic frequency bins
+            # This mirrors the internal math of the standard WGCNA package
+            binned_k <- cut(log10(kWithin), breaks = n_bins)
+            bin_counts <- table(binned_k)
+            
+            # Calculate P(k) - the probability distribution of connectivity
+            p_k <- as.numeric(bin_counts) / sum(bin_counts)
+            
+            # Calculate the midpoints of the connectivity bins
+            bin_breaks <- seq(min(log10(kWithin)), max(log10(kWithin)), length.out = n_bins + 1)
+            bin_midpoints <- 10^(bin_breaks[-1] - diff(bin_breaks)/2)
+            
+            # 4. Filter out empty bins to prevent log(0) errors
+            valid <- p_k > 0
+            if (sum(valid) > 2) {
+            log_midpoints <- log10(bin_midpoints[valid])
+            log_p_k <- log10(p_k[valid])
+            
+            # 5. Fit the linear model: log(P(k)) ~ log(k)
+            fit <- lm(log_p_k ~ log_midpoints)
+            
+            results$R2[i] <- summary(fit)$r.squared
+            results$Slope[i] <- coef(fit)[2]
+            }
+        }
+        return(results)
+    }
+
     if (framework == "CellFie") {
         systemHu = getSystem(taskInfo, System=System)
         sub = dat[rownames(dat) %in% systemHu$GeneAssociatedToEssentialRxnsTask,]
@@ -3746,11 +3792,26 @@ getSystemNetwork = function(
         cor(t(sub[,samples]), method = "spearman")
     }) %>% Reduce("+", .)) / length(unique(meta$Cancer_type))
     # cor_mat = cor(t(sub), method = "spearman")
-    # IMPLEMENT BETA POWER: Calculate Weighted Adjacency Matrix
-    # We take the absolute correlation values and raise them to the power of beta
-    adj_mat = abs(cor_mat)^beta
-    kWithin = rowSums(adj_mat) - 1 # hubness
-    # kWithin = rowSums(abs(cor_mat)) - 1 # hubness
+
+    # IMPLEMENT BETA POWER: Calculate Weighted Adjacency Matrix and select optimal power (the lowest power among those R2>0.8)
+    # 1. Run your topology fit function (from the previous step)
+    topology_fits <- estimate_scale_free_fit(cor_mat, powers = 1:20)
+    # 2. Define your target scale-free R2 threshold (0.80 is standard)
+    # r2_threshold <- 0.80
+    # 3. Filter for powers that meet the threshold and have a negative slope
+    valid_powers <- subset(topology_fits, R2 >= r2_threshold & Slope < 0)
+    if (nrow(valid_powers) > 0) {
+    # Option A: Choose the lowest power that achieved an R2 >= 0.80
+    optimal_beta <- min(valid_powers$Power)
+    message(paste("Success: Automated selection chose beta =", optimal_beta, "based on R2 >=", r2_threshold))
+    } else {
+    # Option B: Fallback if no power hits 0.80 (picks the absolute highest R2)
+    optimal_beta <- topology_fits$Power[which.max(topology_fits$R2)]
+    warning(paste("Warning: No power reached R2 =", r2_threshold, ". Selecting highest available R2 at beta =", optimal_beta))
+    }
+    # 4. Pass the automated power directly into your network calculation
+    kWithin = rowSums(abs(cor_mat)^optimal_beta) - 1
+
     hub.nr = max(3, 0.01*length(kWithin))
     hubs = names(sort(kWithin, decreasing = TRUE))[1:hub.nr]
 
@@ -3786,7 +3847,7 @@ getSystemNetwork = function(
     set.seed(42)
     paste0(outdir, "/Network/") %>% dir.create(recursive=T, showWarnings=F)
     h = w = size.index*length(V(g))/10 + 5
-    pdf(paste0(outdir, "/Network/Network_hub_", gsub(" ", "", System),suffix,".pdf"), h=h,w=w)
+    pdf(paste0(outdir, "/Network/Network_hub_", gsub(" ", "", System),suffix,"_power",optimal_beta, ".pdf"), h=h,w=w)
     # library(scales)
     edge.color = ifelse(E(g)$weight > 0, "snow2", "skyblue")
     E(g)$weight = abs(E(g)$weight)
