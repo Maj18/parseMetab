@@ -3711,7 +3711,7 @@ makeExprBoxplot_system = function(
 getSystemNetwork = function(
     dat=NdatHu, taskInfo=taskInfo2, System, outdir, suffix="",
     framework="CellFie", keggTable=NULL, size.index=1,
-    vertex.size.index=10, meta=NULL) {
+    vertex.size.index=10, meta=NULL, beta=1) {
     if (framework == "CellFie") {
         systemHu = getSystem(taskInfo, System=System)
         sub = dat[rownames(dat) %in% systemHu$GeneAssociatedToEssentialRxnsTask,]
@@ -3746,7 +3746,11 @@ getSystemNetwork = function(
         cor(t(sub[,samples]), method = "spearman")
     }) %>% Reduce("+", .)) / length(unique(meta$Cancer_type))
     # cor_mat = cor(t(sub), method = "spearman")
-    kWithin = rowSums(abs(cor_mat)) - 1 # hubness
+    # IMPLEMENT BETA POWER: Calculate Weighted Adjacency Matrix
+    # We take the absolute correlation values and raise them to the power of beta
+    adj_mat = abs(cor_mat)^beta
+    kWithin = rowSums(adj_mat) - 1 # hubness
+    # kWithin = rowSums(abs(cor_mat)) - 1 # hubness
     hub.nr = max(3, 0.01*length(kWithin))
     hubs = names(sort(kWithin, decreasing = TRUE))[1:hub.nr]
 
