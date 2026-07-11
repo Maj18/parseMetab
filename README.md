@@ -2,10 +2,10 @@
 
 **Metabolic activity inference and analysis for omics data**
 
-![Version](https://img.shields.io/badge/version-1.0.4-brightgreen)
+![Version](https://img.shields.io/badge/version-1.0.5-brightgreen)
 ![License](https://img.shields.io/badge/license-GPL%20%28%3E%3D%203%29-green)
 ![Status](https://img.shields.io/badge/status-active-success)  
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19153922.svg)](https://doi.org/10.5281/zenodo.19153922)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21306120.svg)](https://doi.org/10.5281/zenodo.21306120)
 
 
 ## Overview
@@ -213,7 +213,7 @@ If you use parseMetab in your research, please cite:
   year = {2026},
   version = {1.0.4},
   url = {https://github.com/Maj18/parseMetab},
-  doi = {10.5281/zenodo.19153922}
+  doi = {10.5281/zenodo.21306120}
 }
 ```
 
