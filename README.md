@@ -211,7 +211,7 @@ If you use parseMetab in your research, please cite:
   author = {Li, Yuan},
   title = {parseMetab: Metabolic Activity Inference and Analysis for Omics Data},
   year = {2026},
-  version = {1.0.4},
+  version = {1.0.6},
   url = {https://github.com/Maj18/parseMetab},
   doi = {10.5281/zenodo.21373531}
 }
