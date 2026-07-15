@@ -222,7 +222,7 @@ Or in text format:
 ```
 Bai et al. (2026) Pan-cancer metabolic landscapes: A multi-omics view. In review.
 Yuan Li (2026). parseMetab: Metabolic activity inference and analysis for omics data. 
-R package version 1.0.4. https://doi.org/10.5281/zenodo.19153922
+R package version 1.0.6. https://doi.org/10.5281/zenodo.21373531
 ```
 
 ## License
