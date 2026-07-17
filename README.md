@@ -232,7 +232,7 @@ This project is licensed under the GPL (>= 3) License. See [DESCRIPTION](DESCRIP
 ## Contact & Support
 
 **Author/Maintainer**: YUAN LI  
-**Email**: [yuan.li@nbis.se](mailto:yuan.li@nbis.se)
+**Email**: [yuan.li@nbis.se](mailto:uncork-shady-next@duck.com)
 
 ---
 
