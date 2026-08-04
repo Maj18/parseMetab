@@ -3711,7 +3711,7 @@ makeExprBoxplot_system = function(
 getSystemNetwork = function(
     dat=NdatHu, taskInfo=taskInfo2, System, outdir, suffix="",
     framework="CellFie", keggTable=NULL, size.index=1,
-    vertex.size.index=10, meta=NULL, 
+    vertex.size.index=10, meta=NULL, topHubPercent=0.01,
     r2_threshold=0.8) {
     
     estimate_scale_free_fit <- function(cor_mat, powers = 1:20, n_bins = 10) {
@@ -3812,7 +3812,7 @@ getSystemNetwork = function(
     # 4. Pass the automated power directly into your network calculation
     kWithin = rowSums(abs(cor_mat)^optimal_beta) - 1
 
-    hub.nr = max(3, 0.01*length(kWithin))
+    hub.nr = max(3, topHubPercent*length(kWithin))
     hubs = names(sort(kWithin, decreasing = TRUE))[1:hub.nr]
 
     # library(igraph)
@@ -3847,7 +3847,8 @@ getSystemNetwork = function(
     set.seed(42)
     paste0(outdir, "/Network/") %>% dir.create(recursive=T, showWarnings=F)
     h = w = size.index*length(V(g))/10 + 5
-    pdf(paste0(outdir, "/Network/Network_hub_", gsub(" ", "", System),suffix,"_power",optimal_beta, ".pdf"), h=h,w=w)
+    pdf(paste0(outdir, "/Network/Network_hub_", gsub(" ", "", System), 
+        suffix, "_power", optimal_beta, "_topHubPercent", topHubPercent, ".pdf"), h=h,w=w)
     # library(scales)
     edge.color = ifelse(E(g)$weight > 0, "snow2", "skyblue")
     E(g)$weight = abs(E(g)$weight)
